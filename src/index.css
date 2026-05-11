@@ -582,3 +582,59 @@
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   .parking-col { width: 55px; }
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       .filtro-btn { padding: 5px 12px; font-size: 10px; }
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       }
+
+/* Contenedor de lugares especiales - alineado a la izquierda */
+.parking-bottom-premium {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(245, 158, 11, 0.2);
+    text-align: left;  /* 👈 Cambiado de center a left */
+    padding-left: 20px;  /* 👈 Espacio desde la izquierda */
+}
+
+.bottom-label {
+    color: #f59e0b;
+    font-weight: 600;
+    font-size: 12px;
+    margin-bottom: 15px;
+    letter-spacing: 1px;
+    text-align: left;  /* 👈 Alineado a la izquierda */
+}
+
+.bottom-spots {
+    display: flex;
+    gap: 20px;
+    justify-content: flex-start;  /* 👈 Alineado a la izquierda */
+    flex-wrap: wrap;
+}
+
+/* Asegurar que los lugares especiales tengan el mismo ancho que S y Z */
+#bottom-xy {
+    display: flex;
+    gap: 20px;
+    justify-content: flex-start;
+}
+
+#bottom-xy .parking-spot {
+    width: 80px !important;
+    min-width: 80px !important;
+    max-width: 80px !important;
+}
+
+/* Alinear específicamente debajo de las columnas S y Z */
+.parking-bottom-premium {
+    margin-left: 20px;  /* Ajusta este valor para alinear con S1 */
+}
+
+#bottom-xy {
+    margin-left: 0px;
+}
+
+#bottom-xy .parking-spot:first-child {
+    margin-left: 0px;  /* X1 debajo de S14 */
+}
+
+#bottom-xy .parking-spot:last-child {
+    margin-left: 92px;  /* X2 debajo de Z14 (80px + 12px gap) */
+}
+
