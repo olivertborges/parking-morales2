@@ -89,3 +89,123 @@
     min-width: 500px !important;
   }
 }
+
+/* ===== PARKING VIRTUAL PARA MÓVIL ===== */
+@media (max-width: 768px) {
+  /* Columnas más compactas */
+    .parking-col {
+        width: 55px !important;
+            gap: 6px !important;
+              }
+                
+                  /* Lugares más pequeños y redondeados */
+                    .parking-spot {
+                        padding: 8px 2px !important;
+                            min-height: 55px !important;
+                                border-radius: 10px !important;
+                                  }
+                                    
+                                      /* Números más pequeños */
+                                        .spot-number {
+                                            font-size: 11px !important;
+                                                font-weight: 700 !important;
+                                                  }
+                                                    
+                                                      /* Doctor más pequeño */
+                                                        .spot-doctor {
+                                                            font-size: 7px !important;
+                                                                margin-top: 3px !important;
+                                                                  }
+                                                                    
+                                                                      /* Títulos de columnas más pequeños */
+                                                                        .col-label {
+                                                                            width: 55px !important;
+                                                                                font-size: 12px !important;
+                                                                                  }
+                                                                                    
+                                                                                      /* Estadísticas horizontales en móvil */
+                                                                                        .parking-header-premium {
+                                                                                            flex-direction: column !important;
+                                                                                                align-items: flex-start !important;
+                                                                                                  }
+                                                                                                    
+                                                                                                      .stats-modernas {
+                                                                                                          width: 100% !important;
+                                                                                                              justify-content: space-between !important;
+                                                                                                                }
+                                                                                                                  
+                                                                                                                    .stat-card {
+                                                                                                                        padding: 6px 10px !important;
+                                                                                                                            flex: 1 !important;
+                                                                                                                                justify-content: center !important;
+                                                                                                                                  }
+                                                                                                                                    
+                                                                                                                                      .stat-value {
+                                                                                                                                          font-size: 16px !important;
+                                                                                                                                            }
+                                                                                                                                              
+                                                                                                                                                .stat-label {
+                                                                                                                                                    font-size: 9px !important;
+                                                                                                                                                      }
+                                                                                                                                                        
+                                                                                                                                                          /* Filtros más compactos */
+                                                                                                                                                            .filtros-rapidos {
+                                                                                                                                                                gap: 6px !important;
+                                                                                                                                                                  }
+                                                                                                                                                                    
+                                                                                                                                                                      .filtro-btn {
+                                                                                                                                                                          padding: 5px 10px !important;
+                                                                                                                                                                              font-size: 10px !important;
+                                                                                                                                                                                }
+                                                                                                                                                                                  
+                                                                                                                                                                                    /* Mapa con menos padding */
+                                                                                                                                                                                      .parking-map-premium {
+                                                                                                                                                                                          padding: 12px !important;
+                                                                                                                                                                                            }
+                                                                                                                                                                                              
+                                                                                                                                                                                                /* Leyenda más compacta */
+                                                                                                                                                                                                  .parking-legend-premium {
+                                                                                                                                                                                                      gap: 12px !important;
+                                                                                                                                                                                                          padding: 10px 15px !important;
+                                                                                                                                                                                                            }
+                                                                                                                                                                                                              
+                                                                                                                                                                                                                .legend-item {
+                                                                                                                                                                                                                    font-size: 10px !important;
+                                                                                                                                                                                                                      }
+                                                                                                                                                                                                                      }
+
+                                                                                                                                                                                                                      /* ===== MEJORAS GENERALES PARA MÓVIL ===== */
+                                                                                                                                                                                                                      @media (max-width: 768px) {
+                                                                                                                                                                                                                        /* Contenedor principal */
+                                                                                                                                                                                                                          .parking-virtual-container {
+                                                                                                                                                                                                                              overflow-x: auto;
+                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                  
+                                                                                                                                                                                                                                    /* Columnas - scroll horizontal */
+                                                                                                                                                                                                                                      .parking-columns {
+                                                                                                                                                                                                                                          gap: 8px !important;
+                                                                                                                                                                                                                                              justify-content: flex-start !important;
+                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                  
+                                                                                                                                                                                                                                                    /* Lugares especiales */
+                                                                                                                                                                                                                                                      .bottom-spots {
+                                                                                                                                                                                                                                                          gap: 8px !important;
+                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                              
+                                                                                                                                                                                                                                                                #bottom-xy .parking-spot {
+                                                                                                                                                                                                                                                                    width: 55px !important;
+                                                                                                                                                                                                                                                                        min-width: 55px !important;
+                                                                                                                                                                                                                                                                          }
+                                                                                                                                                                                                                                                                            
+                                                                                                                                                                                                                                                                              /* Mini mapa más pequeño */
+                                                                                                                                                                                                                                                                                .mini-map {
+                                                                                                                                                                                                                                                                                    gap: 6px !important;
+                                                                                                                                                                                                                                                                                        padding: 6px 12px !important;
+                                                                                                                                                                                                                                                                                          }
+                                                                                                                                                                                                                                                                                            
+                                                                                                                                                                                                                                                                                              .mini-spot {
+                                                                                                                                                                                                                                                                                                  width: 35px !important;
+                                                                                                                                                                                                                                                                                                      font-size: 11px !important;
+                                                                                                                                                                                                                                                                                                          padding: 5px !important;
+                                                                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                                                                            }
