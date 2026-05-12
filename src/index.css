@@ -956,3 +956,25 @@
 .min-h-screen {
   min-height: 100vh;
 }
+/* Forzar sidebar altura completa */
+.sidebar-fixed {
+  height: 100vh !important;
+  min-height: 100vh !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  bottom: 0 !important;
+  overflow-y: auto !important;
+}
+
+/* Para tablet */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .sidebar-fixed {
+    height: 100vh !important;
+    position: fixed !important;
+  }
+  
+  .lg\:relative {
+    position: relative !important;
+  }
+}
