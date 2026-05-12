@@ -381,31 +381,26 @@ async function toggleHabilitarLugar(spot) {
   }
 
 function actualizarStats(spotsData) {
-  // Filtrar lugares deshabilitados (NO se cuentan)
+  // Lugares habilitados vs deshabilitados
   const lugaresHabilitados = spotsData.filter(s => s.habilitado !== false);
   const lugaresDeshabilitados = spotsData.filter(s => s.habilitado === false);
   
-  // Calcular solo sobre lugares HABILITADOS
   const ocupados = lugaresHabilitados.filter(s => s.activo === true).length;
   const libres = lugaresHabilitados.length - ocupados;
   const totalHabilitados = lugaresHabilitados.length;
+  const deshabilitados = lugaresDeshabilitados.length;
   
-  const deshabilitadosEl = document.getElementById("deshabilitadosCount");
-if (deshabilitadosEl) deshabilitadosEl.innerText = lugaresDeshabilitados.length;
-  // Porcentaje sobre lugares habilitados
   const porcentaje = totalHabilitados > 0 ? Math.round((ocupados / totalHabilitados) * 100) : 0;
   
-  // Mostrar estadísticas
   const libresEl = document.getElementById("libresCount");
   const ocupadosEl = document.getElementById("ocupadosCount");
   const porcentajeEl = document.getElementById("porcentajeCount");
+  const deshabilitadosEl = document.getElementById("deshabilitadosCount");
   
   if (libresEl) libresEl.innerText = libres;
   if (ocupadosEl) ocupadosEl.innerText = ocupados;
   if (porcentajeEl) porcentajeEl.innerText = `${porcentaje}%`;
-  
-  // Opcional: mostrar también cuántos lugares están deshabilitados
-  console.log(`📊 Lugares deshabilitados: ${lugaresDeshabilitados.length}`);
+  if (deshabilitadosEl) deshabilitadosEl.innerText = deshabilitados;
 }
 
   const filteredVehicles = activeVehicles.filter(v =>
@@ -430,16 +425,43 @@ if (deshabilitadosEl) deshabilitadosEl.innerText = lugaresDeshabilitados.length;
           </div>
         </div>
         
-        <div className="stats-modernas">
-          <div className="stat-card"><div className="stat-icon">🟢</div><div className="stat-value" id="libresCount">0</div><div className="stat-label">Libres</div></div>
-          <div className="stat-card"><div className="stat-icon">🔴</div><div className="stat-value" id="ocupadosCount">0</div><div className="stat-label">Ocupados</div></div>
-          <div className="stat-card">
-            <div className="stat-icon">⚫</div>
-            <div className="stat-value" id="deshabilitadosCount">0</div>
-            <div className="stat-label">Deshab.</div>
-          </div>
-          <div className="stat-card"><div className="stat-icon">📊</div><div className="stat-value" id="porcentajeCount">0%</div><div className="stat-label">Ocupación</div></div>
-        </div>
+<div className="stats-modernas flex flex-wrap justify-center gap-2 sm:gap-3">
+  {/* Libres */}
+  <div className="stat-card flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2">
+    <span className="stat-icon text-lg sm:text-xl">🟢</span>
+    <div>
+      <div className="stat-value text-base sm:text-xl font-bold text-white" id="libresCount">0</div>
+      <div className="stat-label text-[8px] sm:text-[10px] text-slate-400">Libres</div>
+    </div>
+  </div>
+  
+  {/* Ocupados */}
+  <div className="stat-card flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2">
+    <span className="stat-icon text-lg sm:text-xl">🔴</span>
+    <div>
+      <div className="stat-value text-base sm:text-xl font-bold text-white" id="ocupadosCount">0</div>
+      <div className="stat-label text-[8px] sm:text-[10px] text-slate-400">Ocupados</div>
+    </div>
+  </div>
+  
+  {/* Ocupación % */}
+  <div className="stat-card flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2">
+    <span className="stat-icon text-lg sm:text-xl">📊</span>
+    <div>
+      <div className="stat-value text-base sm:text-xl font-bold text-white" id="porcentajeCount">0%</div>
+      <div className="stat-label text-[8px] sm:text-[10px] text-slate-400">Ocupación</div>
+    </div>
+  </div>
+  
+  {/* Deshabilitados */}
+  <div className="stat-card flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2">
+    <span className="stat-icon text-lg sm:text-xl">⚫</span>
+    <div>
+      <div className="stat-value text-base sm:text-xl font-bold text-slate-400" id="deshabilitadosCount">0</div>
+      <div className="stat-label text-[8px] sm:text-[10px] text-slate-400">Bloqueados</div>
+    </div>
+  </div>
+</div>
       </div>
 
       {/* Mini-mapa */}

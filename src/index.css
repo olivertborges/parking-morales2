@@ -1002,3 +1002,12 @@
   background: #1e293b;
   z-index: 10;
 }
+
+/* Color para deshabilitados */
+#deshabilitadosCount {
+  color: #94a3b8;
+}
+
+.stat-card:has(#deshabilitadosCount) {
+  border-color: rgba(100, 116, 139, 0.3);
+}
