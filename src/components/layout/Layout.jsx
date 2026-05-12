@@ -83,7 +83,7 @@ export default function Layout() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-slate-900 to-slate-950">
+   <div className="flex h-screen overflow-hidden bg-gradient-to-br from-slate-900 to-slate-950">
       {/* Overlay para cerrar sidebar al hacer clic fuera */}
       {mobileMenuOpen && (
         <div
@@ -93,14 +93,12 @@ export default function Layout() {
       )}
 
       {/* Sidebar */}
-      <div
-        className={`
-                                                                                                                                                                                                                                                                                        fixed lg:relative z-50 transition-transform duration-300 ease-in-out
-                                                                                                                                                                                                                                                                                                ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
-                                                                                                                                                                                                                                                                                                      `}
-      >
-        <Sidebar onClose={() => setMobileMenuOpen(false)} />
-      </div>
+  <div className={`
+    fixed lg:relative z-50 transition-transform duration-300 ease-in-out h-full
+    ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+  `}>
+    <Sidebar onClose={() => setMobileMenuOpen(false)} />
+  </div>
 
       {/* Contenido principal */}
       <div className="flex-1 flex flex-col overflow-hidden w-full">

@@ -70,7 +70,7 @@ export default function Sidebar({ onClose }) {
   );
 
   return (
-    <aside className="w-72 bg-slate-900 border-r border-slate-800 flex flex-col h-full">
+    <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-full min-h-screen overflow-y-auto">
      <div className="p-5 border-b border-slate-800 flex items-center justify-center">
     <div className="logo-universal">
       <img src="/logo.png" alt="Logo" />

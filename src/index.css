@@ -935,3 +935,24 @@
 .parking-spot.disabled .spot-number {
   color: #94a3b8;
 }
+
+/* Asegurar altura completa en tablet */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .sidebar-mobile {
+    height: 100vh !important;
+    min-height: 100vh !important;
+  }
+  
+  .fixed {
+    height: 100vh !important;
+  }
+}
+
+/* Forzar altura completa en todos los dispositivos */
+.h-screen {
+  height: 100vh;
+}
+
+.min-h-screen {
+  min-height: 100vh;
+}
