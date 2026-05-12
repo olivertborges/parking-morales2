@@ -978,3 +978,27 @@
     position: relative !important;
   }
 }
+
+/* Encabezados fijos */
+.page-header-fixed {
+  position: sticky;
+  top: 0;
+  background: #0f172a;
+  z-index: 20;
+  padding: 1rem 0;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+/* Para tablas con scroll */
+.table-container {
+  overflow-y: auto;
+  max-height: calc(100vh - 200px);
+}
+
+.table-container thead th {
+  position: sticky;
+  top: 0;
+  background: #1e293b;
+  z-index: 10;
+}

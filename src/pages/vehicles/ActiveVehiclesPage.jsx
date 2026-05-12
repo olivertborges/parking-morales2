@@ -2,9 +2,11 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../services/supabase";
 import { exitVehicle } from "../../services/activeVehiclesService";
-import { Search, Car, Clock, AlertCircle, LogOut, User, Building2, Star } from "lucide-react";
+import { Search, Car, Clock, AlertCircle, LogOut, User, Building2, Star, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 import { addLog } from "../../services/logsService";
+
+import RegisterVehicleModal from "../../components/modals/RegisterVehicleModal";
 
 export default function ActiveVehiclesPage() {
   const [vehicles, setVehicles] = useState([]);
@@ -12,36 +14,16 @@ export default function ActiveVehiclesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [exitModal, setExitModal] = useState(null);
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [quickType, setQuickType] = useState("Medico");
+
+
   
   const capacidadTotal = 37;
 
-  async function loadVehicles() {
-    console.log("🔄 Cargando vehículos...");
-    setLoading(true);
-    
-    const { data, error } = await supabase
-      .from("active_vehicles")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Error cargando:", error);
-      setVehicles([]);
-      setFilteredVehicles([]);
-    } else {
-      console.log("📊 Vehículos encontrados:", data?.length);
-      setVehicles(data || []);
-      setFilteredVehicles(data || []);
-    }
-    
-    setLoading(false);
-  }
-
-  // Cargar al montar el componente (ejecuta UNA SOLA VEZ)
   useEffect(() => {
     loadVehicles();
-    
-    // Suscripción en tiempo real
+
     const channel = supabase
       .channel("active-vehicles-realtime")
       .on("postgres_changes", 
@@ -56,9 +38,27 @@ export default function ActiveVehiclesPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []); // 👈 EL ARRAY VACÍO ES CLAVE
+  }, []);
 
-  // Filtrar vehículos
+  async function loadVehicles() {
+    setLoading(true);
+    
+    const { data, error } = await supabase
+      .from("active_vehicles")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error cargando:", error);
+    } else {
+      console.log("📊 Vehículos encontrados:", data?.length);
+      setVehicles(data || []);
+      setFilteredVehicles(data || []);
+    }
+    
+    setLoading(false);
+  }
+
   useEffect(() => {
     if (!searchTerm.trim()) {
       setFilteredVehicles(vehicles);
@@ -108,10 +108,10 @@ export default function ActiveVehiclesPage() {
 
   const getTipoIcon = (tipo) => {
     switch (tipo) {
-      case "Medico": return <User className="w-5 h-5 text-blue-400" />;
-      case "Junta": return <Building2 className="w-5 h-5 text-purple-400" />;
-      case "Reserva": return <Star className="w-5 h-5 text-green-400" />;
-      default: return <Car className="w-5 h-5 text-slate-400" />;
+      case "Medico": return <User className="w-4 h-4 text-blue-400" />;
+      case "Junta": return <Building2 className="w-4 h-4 text-purple-400" />;
+      case "Reserva": return <Star className="w-4 h-4 text-green-400" />;
+      default: return <Car className="w-4 h-4 text-slate-400" />;
     }
   };
 
@@ -129,30 +129,54 @@ export default function ActiveVehiclesPage() {
 
   return (
     <div>
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Vehículos dentro</h1>
-          <p className="text-slate-400 text-sm mt-1">Vehículos actualmente estacionados</p>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Buscar..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:w-64 bg-slate-800 border border-slate-700 rounded-xl py-2.5 pl-10 pr-4 text-white text-sm focus:border-amber-500 focus:outline-none"
-            />
-          </div>
-          
-          <div className="bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-2 rounded-xl font-bold text-white">
-            {totalOcupados}/{capacidadTotal}
-          </div>
-        </div>
-      </div>
+      {/* Header con botón rápido */}
+<div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+  <div>
+    <h1 className="text-2xl font-bold text-white">Vehículos dentro</h1>
+    <p className="text-slate-400 text-sm mt-1">Vehículos actualmente estacionados</p>
+  </div>
+  
+  <div className="flex items-center gap-3">
+    {/* Selector de tipo rápido */}
+    <select
+      value={quickType}
+      onChange={(e) => setQuickType(e.target.value)}
+      className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm focus:border-amber-500 focus:outline-none"
+    >
+      <option value="Medico">👨‍⚕️ Médico</option>
+      <option value="Junta">🏛️ Junta</option>
+      <option value="Reserva">⭐ Reserva</option>
+    </select>
+    
+    {/* Botón rápido */}
+    <button
+      onClick={() => setShowRegisterModal(true)}
+      className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition shadow-lg"
+    >
+      <Plus className="w-4 h-4" />
+      <span className="hidden sm:inline">Registrar</span>
+    </button>
+    
+    {/* Buscador */}
+    <div className="relative">
+      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+      <input
+        type="text"
+        placeholder="Buscar..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className="w-full sm:w-64 bg-slate-800 border border-slate-700 rounded-xl py-2.5 pl-10 pr-4 text-white text-sm focus:border-amber-500 focus:outline-none"
+      />
+    </div>
+    
+    {/* Contador */}
+    <div className="bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-2 rounded-xl font-bold text-white">
+      {totalOcupados}/{capacidadTotal}
+    </div>
+  </div>
+</div>
 
+      {/* Barra de ocupación */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-6">
         <div className="flex justify-between text-sm mb-2">
           <span className="text-slate-400">Ocupación actual</span>
@@ -170,6 +194,7 @@ export default function ActiveVehiclesPage() {
         </div>
       </div>
 
+      {/* Lista de vehículos */}
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
@@ -196,6 +221,7 @@ export default function ActiveVehiclesPage() {
         </div>
       )}
 
+      {/* Modal de confirmación */}
       {exitModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800 rounded-2xl max-w-md w-full border border-slate-700">
@@ -236,10 +262,22 @@ export default function ActiveVehiclesPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de registro rápido */}
+      <RegisterVehicleModal 
+        open={showRegisterModal} 
+        onClose={() => setShowRegisterModal(false)} 
+        onSuccess={() => {
+          loadVehicles();
+          setShowRegisterModal(false);
+        }}
+        defaultType={quickType}
+      />
     </div>
   );
 }
 
+// Componente de tarjeta
 function VehicleCard({ vehicle, onExit, getTipoIcon, getTipoColor, calcularTiempo }) {
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-amber-500/50 transition-all duration-300">

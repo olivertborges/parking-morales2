@@ -18,43 +18,43 @@ import { scheduleAutoBackup } from "./services/autoBackupService";
 
 function App() {
   useEffect(() => {
-      scheduleAutoBackup();
-        }, []);
+    scheduleAutoBackup();
+  }, []);
 
-          return (
-              <BrowserRouter>
-                    <Routes>
-                            <Route path="/login" element={<LoginPage />} />
-                                    <Route path="/" element={<Layout />}>
-                                              {/* Rutas públicas (todos los usuarios) */}
-                                                        <Route index element={<DashboardPage />} />
-                                                                  <Route path="vehicles" element={<ActiveVehiclesPage />} />
-                                                                            <Route path="history" element={<HistoryPage />} />
-                                                                                      <Route path="reports" element={<ReportsPage />} />
-                                                                                                <Route path="doctors" element={<DoctorsPage />} />
-                                                                                                          <Route path="parking" element={<ParkingPage />} />
-                                                                                                                    <Route path="parking-history" element={<ParkingHistoryPage />} />
-                                                                                                                              
-                                                                                                                                        {/* Rutas solo para administradores */}
-                                                                                                                                                  <Route path="users" element={
-                                                                                                                                                              <ProtectedRoute adminOnly={true}>
-                                                                                                                                                                            <UsersPage />
-                                                                                                                                                                                        </ProtectedRoute>
-                                                                                                                                                                                                  } />
-                                                                                                                                                                                                            <Route path="logs" element={
-                                                                                                                                                                                                                        <ProtectedRoute adminOnly={true}>
-                                                                                                                                                                                                                                      <LogsPage />
-                                                                                                                                                                                                                                                  </ProtectedRoute>
-                                                                                                                                                                                                                                                            } />
-                                                                                                                                                                                                                                                                      <Route path="tv" element={
-                                                                                                                                                                                                                                                                                  <ProtectedRoute adminOnly={true}>
-                                                                                                                                                                                                                                                                                                <TVPage />
-                                                                                                                                                                                                                                                                                                            </ProtectedRoute>
-                                                                                                                                                                                                                                                                                                                      } />
-                                                                                                                                                                                                                                                                                                                              </Route>
-                                                                                                                                                                                                                                                                                                                                    </Routes>
-                                                                                                                                                                                                                                                                                                                                        </BrowserRouter>
-                                                                                                                                                                                                                                                                                                                                          );
-                                                                                                                                                                                                                                                                                                                                          }
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/" element={<Layout />}>
+          {/* Rutas públicas */}
+          <Route index element={<DashboardPage />} />
+          <Route path="vehicles" element={<ActiveVehiclesPage />} />
+          <Route path="history" element={<HistoryPage />} />
+          <Route path="reports" element={<ReportsPage />} />
+          <Route path="doctors" element={<DoctorsPage />} />
+          <Route path="parking" element={<ParkingPage />} />
+          <Route path="parking-history" element={<ParkingHistoryPage />} />
+          
+          {/* Rutas protegidas solo para admin */}
+          <Route path="users" element={
+            <ProtectedRoute adminOnly={true}>
+              <UsersPage />
+            </ProtectedRoute>
+          } />
+          <Route path="logs" element={
+            <ProtectedRoute adminOnly={true}>
+              <LogsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="tv" element={
+            <ProtectedRoute adminOnly={true}>
+              <TVPage />
+            </ProtectedRoute>
+          } />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
+}
 
-                                                                                                                                                                                                                                                                                                                                          export default App;
+export default App;
