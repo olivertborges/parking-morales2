@@ -422,7 +422,7 @@ if (deshabilitadosEl) deshabilitadosEl.innerText = lugaresDeshabilitados.length;
       <div className="parking-header-premium">
         <div className="parking-title-premium">
           <div className="logo-universal" style={{ margin: 0 }}>
-            <img src="/seguridad.png" alt="Logo" style={{ height: "45px" }} />
+            <img src="/logo.png" alt="Logo" style={{ height: "45px" }} />
           </div>
           <div>
             <h2>Parking Virtual</h2>
