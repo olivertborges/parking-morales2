@@ -165,7 +165,7 @@ const setCurrentTime = () => {
       toast.success(`${formData.nombre} registrado correctamente`);
       onClose();
       if (onSuccess) onSuccess();
-      setTimeout(() => window.location.reload(), 1000);
+
     } else {
       toast.error(`Error: ${result.error}`);
       setError(result.error);

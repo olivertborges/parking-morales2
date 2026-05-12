@@ -381,26 +381,35 @@ async function toggleHabilitarLugar(spot) {
   }
 
 function actualizarStats(spotsData) {
-  // Lugares habilitados vs deshabilitados
-  const lugaresHabilitados = spotsData.filter(s => s.habilitado !== false);
-  const lugaresDeshabilitados = spotsData.filter(s => s.habilitado === false);
-  
-  const ocupados = lugaresHabilitados.filter(s => s.activo === true).length;
-  const libres = lugaresHabilitados.length - ocupados;
-  const totalHabilitados = lugaresHabilitados.length;
-  const deshabilitados = lugaresDeshabilitados.length;
-  
-  const porcentaje = totalHabilitados > 0 ? Math.round((ocupados / totalHabilitados) * 100) : 0;
-  
-  const libresEl = document.getElementById("libresCount");
-  const ocupadosEl = document.getElementById("ocupadosCount");
-  const porcentajeEl = document.getElementById("porcentajeCount");
-  const deshabilitadosEl = document.getElementById("deshabilitadosCount");
-  
-  if (libresEl) libresEl.innerText = libres;
-  if (ocupadosEl) ocupadosEl.innerText = ocupados;
-  if (porcentajeEl) porcentajeEl.innerText = `${porcentaje}%`;
-  if (deshabilitadosEl) deshabilitadosEl.innerText = deshabilitados;
+    // 📌 Definir lugares INVISIBLES
+      const lugaresInvisibles = [
+          "Z7","Z8","Z9","Z10","Z11",
+              "W1","W4","W5","W6","W7","W8",
+                  "T1","T4","T5","T6","T7","T8","T12","T13","T14"
+                    ];
+                      
+                        // 👇 Filtrar SOLO lugares VISIBLES
+                          const lugaresVisibles = spotsData.filter(spot => !lugaresInvisibles.includes(spot.lugar));
+                            
+                              // Contar sobre lugares visibles
+                                const ocupados = lugaresVisibles.filter(spot => spot.activo === true && spot.habilitado !== false).length;
+                                  const libres = lugaresVisibles.filter(spot => spot.activo === false && spot.habilitado !== false).length;
+                                    const totalVisibles = lugaresVisibles.length;
+                                      
+                                        // Calcular porcentaje sobre visibles
+                                          const porcentaje = totalVisibles > 0 ? Math.round((ocupados / totalVisibles) * 100) : 0;
+                                            
+                                              // Actualizar el DOM
+                                                const libresEl = document.getElementById("libresCount");
+                                                  const ocupadosEl = document.getElementById("ocupadosCount");
+                                                    const porcentajeEl = document.getElementById("porcentajeCount");
+                                                      
+                                                        if (libresEl) libresEl.innerText = libres;
+                                                          if (ocupadosEl) ocupadosEl.innerText = ocupados;
+                                                            if (porcentajeEl) porcentajeEl.innerText = `${porcentaje}%`;
+                                                              
+                                                                console.log(`📊 Visibles: ${totalVisibles} | Ocupados: ${ocupados} | Libres: ${libres} | %: ${porcentaje}`);
+                                                                }
 }
 
   const filteredVehicles = activeVehicles.filter(v =>
