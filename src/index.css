@@ -307,27 +307,94 @@
   pointer-events: none;
 }
 
-/* Zona inferior */
-.parking-bottom-premium {
-  margin-top: 30px;
-  padding-top: 20px;
-  border-top: 1px solid rgba(245, 158, 11, 0.2);
-  text-align: center;
+/* Header moderno - centrar elementos */
+.parking-header-premium {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
 }
 
-.bottom-label {
-  color: #f59e0b;
-  font-weight: 600;
-  font-size: 12px;
-  margin-bottom: 15px;
-  letter-spacing: 1px;
+/* Contenedor del logo y título - izquierda */
+.parking-title-premium {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+/* Estadísticas - centradas */
+.stats-modernas {
+    display: flex;
+    gap: 12px;
+    margin: 0 auto;  /* 👈 Centrar */
+}
+
+/* Forzar centrado de X1 y X2 */
+.parking-bottom-premium {
+    text-align: center !important;
 }
 
 .bottom-spots {
-  display: flex;
-  gap: 20px;
-  justify-content: center;
-  flex-wrap: wrap;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+}
+
+#bottom-xy {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+}
+
+#bottom-xy .parking-spot {
+    margin: 0 !important;
+}
+
+/* Zona inferior - todo centrado */
+.parking-bottom-premium {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(245, 158, 11, 0.2);
+    text-align: center !important;
+    width: 100%;
+}
+
+.bottom-label {
+    color: #f59e0b;
+    font-weight: 600;
+    font-size: 12px;
+    margin-bottom: 15px;
+    letter-spacing: 1px;
+    text-align: center !important;
+    display: block;
+    width: 100%;
+}
+
+.bottom-spots {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+}
+
+#bottom-xy {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 20px;
+    width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+}
+
+#bottom-xy .parking-spot {
+    margin: 0 !important;
 }
 
 /* Leyenda moderna */
@@ -537,41 +604,69 @@
   transition: 0.2s;
 }
 
-/* LOGOS */
+/* Logo principal - amarillo que resalta */
 .logo-universal {
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.1);
-  padding: 6px;
-  border-radius: 12px;
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  padding: 8px;
+  border-radius: 16px;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+  transition: all 0.3s ease;
+}
+
+.logo-universal:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 25px rgba(245, 158, 11, 0.6);
 }
 
 .logo-universal img {
-  height: 40px;
+  height: 45px;
   width: auto;
   display: block;
-  filter: brightness(0) invert(1);
+  /*filter: brightness(0) invert(1);*/ /* Logo blanco sobre fondo naranja */
 }
 
+/* Logo móvil */
 .logo-universal-mobile {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
-  padding: 4px;
-  border-radius: 10px;
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  padding: 6px;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.3);
 }
 
 .logo-universal-mobile img {
-  filter: brightness(0) invert(1);
-  height: 32px;
+  height: 28px;
   width: auto;
+  filter: brightness(0) invert(1);
+}
+
+/* Logo para login */
+.logo-universal-login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  padding: 15px;
+  border-radius: 25px;
+  box-shadow: 0 8px 25px rgba(245, 158, 11, 0.5);
+  transition: all 0.3s ease;
+}
+
+.logo-universal-login:hover {
+  transform: scale(1.05);
+  box-shadow: 0 12px 35px rgba(245, 158, 11, 0.7);
+}
+
+.logo-universal-login img {
+  height: 60px;
+  width: auto;
+  /*filter: brightness(0) invert(1);*/
 }
 
 /* Responsive */
@@ -701,4 +796,142 @@
 
 .parking-spot.free .spot-number {
     color: #10b981;
+}
+
+
+.parking-spot.disabled {
+  background: rgba(100, 116, 139, 0.15);
+  border: 1px solid rgba(100, 116, 139, 0.5);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.parking-spot.disabled .spot-number {
+  color: #94a3b8;
+}
+
+.parking-spot.disabled .spot-doctor {
+  color: #64748b;
+}
+
+/* Mejorar tooltips nativos */
+.parking-spot[title] {
+  cursor: help;
+}
+
+.parking-spot[title]:hover {
+  filter: brightness(1.05);
+}
+
+/* Hover modal elegante */
+.parking-spot {
+  position: relative;
+}
+
+.parking-spot:hover .hover-card {
+  display: block;
+}
+
+.hover-card {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  border: 1px solid #f59e0b;
+  border-radius: 12px;
+  padding: 8px 12px;
+  min-width: 150px;
+  text-align: center;
+  z-index: 1000;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  backdrop-filter: blur(8px);
+}
+
+.hover-card::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: #f59e0b transparent transparent transparent;
+}
+
+.hover-card .medico-nombre {
+  color: #f59e0b;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.hover-card .medico-matricula {
+  color: #94a3b8;
+  font-size: 10px;
+  margin-top: 4px;
+}
+
+.hover-card .medico-tipo {
+  color: #10b981;
+  font-size: 10px;
+  margin-top: 4px;
+}
+
+/* Colores por tipo de vehículo */
+.parking-spot.free {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.parking-spot.occupied {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+}
+
+.parking-spot.occupied .spot-number {
+  color: #3b82f6;
+}
+
+/* Junta Directiva - Morado */
+.parking-spot.junta {
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.5);
+}
+
+.parking-spot.junta .spot-number {
+  color: #a78bfa;
+}
+
+/* Lugar de Junta libre - Morado sólido (sin borde discontinuo) */
+.parking-spot.junta-libre {
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.4);  /* 👈 Cambiado de dashed a solid */
+}
+
+.parking-spot.junta-libre .spot-number {
+  color: #a78bfa;
+}
+
+/* Reservas - Verde */
+.parking-spot.reserva {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.5);
+}
+
+.parking-spot.reserva .spot-number {
+  color: #34d399;
+}
+
+/* Deshabilitado */
+.parking-spot.disabled {
+  background: rgba(100, 116, 139, 0.15);
+  border: 1px solid rgba(100, 116, 139, 0.4);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.parking-spot.disabled .spot-number {
+  color: #94a3b8;
 }

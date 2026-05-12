@@ -13,8 +13,7 @@ export default function ParkingPage() {
   const [modoMover, setModoMover] = useState(false);
   const [vehiculoAMover, setVehiculoAMover] = useState(null);
   const [asignando, setAsignando] = useState(false);
-  const [activeFilter, setActiveFilter] = useState('todos');
-
+  const [activeFilter, setActiveFilter] = useState("todos");
 
   useEffect(() => {
     loadParking();
@@ -30,10 +29,10 @@ export default function ParkingPage() {
   }, []);
 
   useEffect(() => {
-  if (Object.keys(spotsMap).length > 0) {
-    renderizarParking(spotsMap);
-  }
-}, [activeFilter]);
+    if (Object.keys(spotsMap).length > 0) {
+      renderizarParking(spotsMap);
+    }
+  }, [activeFilter]);
 
   async function loadParking() {
     const { data } = await supabase.from("parking_assignments").select("*");
@@ -69,7 +68,6 @@ export default function ParkingPage() {
     const lugaresW = ["W1","W2","W3","W4","W5","W6","W7","W8","W9","W10","W11","W12","W13","W14"];
     const lugaresT = ["T1","T2","T3","T4","T5","T6","T7","T8","T9","T10","T11","T12","T13","T14"];
     const lugaresXY = ["X1","X2"];
-    const lugaresEspeciales = ["W2", "W3", "T2", "T3"];
 
     if (colS) renderColumna(colS, lugaresS, spotsMap);
     if (colZ) renderColumna(colZ, lugaresZ, spotsMap);
@@ -85,132 +83,199 @@ function renderColumna(container, lugares, spotsMap) {
   lugares.forEach(lugar => {
     const spot = spotsMap[lugar];
     const invisible = esInvisible(lugar);
-    const ocupado = spot?.activo === true;
-    const esJunta = spot?.tipo_medico === "Junta";
+    const habilitado = spot?.habilitado !== false;
+    const ocupado = spot?.activo === true && habilitado;
+    const deshabilitado = !habilitado;
+    const nombreDoctor = spot?.medico_nombre || "";
+    const matriculaDoctor = spot?.medico_matricula || "";
+    const tipoVehiculo = spot?.tipo_medico || spot?.tipo;
     
-    // 👈 APLICAR FILTRO
+    // Lugares fijos de Junta Directiva
+    const esLugarJuntaFijo = ["W2", "W3", "T2", "T3"].includes(lugar);
+    
+    // FILTROS
     let mostrar = true;
     if (activeFilter === 'libres' && ocupado) mostrar = false;
     if (activeFilter === 'ocupados' && !ocupado) mostrar = false;
-    if (activeFilter === 'medicos' && (!ocupado || esJunta)) mostrar = false;
-    if (activeFilter === 'junta' && (!ocupado || !esJunta)) mostrar = false;
+    if (activeFilter === 'medicos' && (!ocupado || tipoVehiculo === "Junta" || tipoVehiculo === "Reserva")) mostrar = false;
+    if (activeFilter === 'junta' && (!ocupado || tipoVehiculo !== "Junta")) mostrar = false;
+    
+    if (!mostrar) return;
     
     const div = document.createElement("div");
     
-    if (invisible || !mostrar) {
-      if (invisible) {
-        div.className = "parking-spot invisible-spot";
-        div.style.visibility = "hidden";
-        div.style.opacity = "0";
-        div.style.pointerEvents = "none";
-        div.style.height = "70px";
-        div.innerHTML = `<span class="spot-number" style="visibility:hidden">${lugar}</span>`;
-      } else {
-        div.style.display = "none";
-      }
+    if (invisible) {
+      div.className = "parking-spot invisible-spot";
+      div.style.visibility = "hidden";
+      div.style.opacity = "0";
+      div.style.pointerEvents = "none";
+      div.style.height = "70px";
+      div.innerHTML = `<span class="spot-number" style="visibility:hidden">${lugar}</span>`;
+    } else if (deshabilitado) {
+      div.className = "parking-spot disabled";
+      div.onclick = () => {
+        const spotConHabilitado = spot || { lugar, activo: false, habilitado: false };
+        setSelectedSpot(spotConHabilitado);
+        setShowModal(true);
+      };
+      div.innerHTML = `
+        <span class="spot-number" style="color: #94a3b8">${lugar}</span>
+        <div class="spot-doctor" style="color: #64748b">🚫 Deshabilitado</div>
+        <div class="hover-card">
+          <div class="medico-nombre">Lugar deshabilitado</div>
+          <div class="medico-matricula">Habilitar para usar</div>
+        </div>
+      `;
     } else {
-      let colorClass = ocupado ? (esJunta ? "junta" : "occupied") : "free";
+      // Determinar color según tipo
+      let colorClass = "";
+      let hoverTipo = "";
+      
+      if (ocupado) {
+        if (tipoVehiculo === "Junta") {
+          colorClass = "junta";
+          hoverTipo = "🏛️ Junta Directiva";
+        } else if (tipoVehiculo === "Reserva") {
+          colorClass = "reserva";
+          hoverTipo = "⭐ Reserva";
+        } else {
+          colorClass = "occupied";
+          hoverTipo = "👨‍⚕️ Médico";
+        }
+      } else if (esLugarJuntaFijo) {
+        colorClass = "junta-libre";
+        hoverTipo = "🏛️ Lugar Junta Directiva (libre)";
+      } else {
+        colorClass = "free";
+        hoverTipo = "🟢 Lugar libre";
+      }
+      
       div.className = `parking-spot ${colorClass}`;
-      div.setAttribute("data-lugar", lugar);
-      if (ocupado) div.setAttribute("data-tooltip", `${spot?.medico_nombre || ""} - ${spot?.medico_matricula || ""}`);
+      
+      // Hover card
+      let hoverCardHtml = '';
+      if (ocupado && nombreDoctor) {
+        hoverCardHtml = `
+          <div class="hover-card">
+            <div class="medico-nombre">${nombreDoctor}</div>
+            <div class="medico-matricula">${matriculaDoctor}</div>
+            <div class="medico-tipo">${hoverTipo}</div>
+          </div>
+        `;
+      } else {
+        hoverCardHtml = `
+          <div class="hover-card">
+            <div class="medico-nombre">${esLugarJuntaFijo ? 'Lugar Junta Directiva' : 'Lugar libre'}</div>
+            <div class="medico-matricula">Click para asignar</div>
+            ${esLugarJuntaFijo ? '<div class="medico-tipo">🏛️ Reservado para Junta</div>' : ''}
+          </div>
+        `;
+      }
       
       div.onclick = () => {
         if (modoMover && vehiculoAMover) {
           moverALugar(spot);
         } else {
-          setSelectedSpot(spot || { lugar, activo: false });
+          const spotConHabilitado = spot || { lugar, activo: false, habilitado: true };
+          setSelectedSpot(spotConHabilitado);
           setShowModal(true);
         }
       };
       
       div.innerHTML = `
         <span class="spot-number">${lugar}</span>
-        ${ocupado ? `<div class="spot-doctor"><i class="fas fa-user-md"></i> ${(spot?.medico_nombre || "").split(" ")[0]}</div>` : ""}
+        ${ocupado ? `<div class="spot-doctor"><i class="fas fa-user-md"></i> ${(nombreDoctor || "").split(" ")[0]}</div>` : ""}
+        ${hoverCardHtml}
       `;
     }
     container.appendChild(div);
   });
 }
 
-async function asignarLugar(vehicle) {
-  if (!selectedSpot || asignando) return;
+async function toggleHabilitarLugar(spot) {
+  if (!spot) return;
   
-  setAsignando(true);
+  const nuevoEstado = spot.habilitado === false ? true : false;
   
-  const toastId = toast.loading(`Asignando lugar ${selectedSpot.lugar}...`);
+  const { error } = await supabase
+    .from("parking_assignments")
+    .update({ habilitado: nuevoEstado })
+    .eq("id", spot.id);
   
-  try {
-    const ahora = new Date();
-    const horaAsignacion = ahora.toLocaleTimeString('es-AR');
-    const fechaAsignacion = ahora.toISOString().split('T')[0];
-    
-    // Verificar que el lugar sigue libre
-    const { data: lugarActual, error: checkError } = await supabase
-      .from("parking_assignments")
-      .select("activo")
-      .eq("lugar", selectedSpot.lugar)
-      .single();
-    
-    if (checkError) {
-      console.error("Error verificando lugar:", checkError);
-    }
-    
-    if (lugarActual?.activo === true) {
-      toast.error(`❌ El lugar ${selectedSpot.lugar} ya fue ocupado`, { id: toastId });
-      setAsignando(false);
-      return;
-    }
-    
-    // Primero, si el vehículo ya tenía otro lugar, liberarlo
-    const { data: lugarAnterior } = await supabase
-      .from("parking_assignments")
-      .select("id, lugar")
-      .eq("vehiculo_id", vehicle.id)
-      .eq("activo", true)
-      .single();
-    
-    if (lugarAnterior) {
-      await supabase
-        .from("parking_assignments")
-        .update({ activo: false, medico_nombre: null, medico_matricula: null, vehiculo_id: null })
-        .eq("id", lugarAnterior.id);
-      console.log(`📍 Lugar anterior ${lugarAnterior.lugar} liberado`);
-    }
-    
-    // Asignar el nuevo lugar
-    const { error } = await supabase
-      .from("parking_assignments")
-      .upsert({
-        lugar: selectedSpot.lugar,
-        activo: true,
-        medico_nombre: vehicle.nombre,
-        medico_matricula: vehicle.matricula,
-        tipo_medico: vehicle.tipo,
-        vehiculo_id: vehicle.id,
-        fecha_asignacion: fechaAsignacion,
-        hora_asignacion: horaAsignacion
-      });
-    
-    if (error) throw error;
-    
-    toast.success(`✅ Lugar ${selectedSpot.lugar} asignado a ${vehicle.nombre}`, { id: toastId });
-    setShowModal(false);
-    await loadParking();
-    await loadActiveVehicles();
-    
-  } catch (error) {
-    console.error("Error en asignación:", error);
-    toast.error(`❌ Error: ${error.message}`, { id: toastId });
-  } finally {
-    setAsignando(false);
+  if (!error) {
+    toast.success(`📍 Lugar ${spot.lugar} ${nuevoEstado ? 'habilitado' : 'deshabilitado'}`);
+    setSelectedSpot({ ...spot, habilitado: nuevoEstado });
+    await loadParking(); // Esto recalculará las estadísticas
+  } else {
+    toast.error(`❌ Error: ${error.message}`);
   }
 }
 
+  async function asignarLugar(vehicle) {
+    if (!selectedSpot || asignando) return;
+    
+    setAsignando(true);
+    const toastId = toast.loading(`Asignando lugar ${selectedSpot.lugar}...`);
+    
+    try {
+      const ahora = new Date();
+      const horaAsignacion = ahora.toLocaleTimeString('es-AR');
+      const fechaAsignacion = ahora.toISOString().split('T')[0];
+      
+      const { data: lugarActual } = await supabase
+        .from("parking_assignments")
+        .select("activo")
+        .eq("id", selectedSpot.id)
+        .single();
+      
+      if (lugarActual?.activo === true) {
+        toast.error(`❌ El lugar ${selectedSpot.lugar} ya fue ocupado`, { id: toastId });
+        setAsignando(false);
+        return;
+      }
+      
+      const { data: lugarAnterior } = await supabase
+        .from("parking_assignments")
+        .select("id, lugar")
+        .eq("vehiculo_id", vehicle.id)
+        .eq("activo", true)
+        .single();
+      
+      if (lugarAnterior) {
+        await supabase
+          .from("parking_assignments")
+          .update({ activo: false, medico_nombre: null, medico_matricula: null, vehiculo_id: null })
+          .eq("id", lugarAnterior.id);
+      }
+      
+      const { error } = await supabase
+        .from("parking_assignments")
+        .update({
+          activo: true,
+          medico_nombre: vehicle.nombre,
+          medico_matricula: vehicle.matricula,
+          tipo_medico: vehicle.tipo,
+          vehiculo_id: vehicle.id,
+          fecha_asignacion: fechaAsignacion,
+          hora_asignacion: horaAsignacion,
+          habilitado: true
+        })
+        .eq("id", selectedSpot.id);
+      
+      if (error) throw error;
+      
+      toast.success(`✅ Lugar ${selectedSpot.lugar} asignado a ${vehicle.nombre}`, { id: toastId });
+      setShowModal(false);
+      loadParking();
+      loadActiveVehicles();
+      
+    } catch (error) {
+      toast.error(`❌ Error: ${error.message}`, { id: toastId });
+    } finally {
+      setAsignando(false);
+    }
+  }
 
-function aplicarFiltro(filtro) {
-  console.log("Filtro seleccionado:", filtro);
-  setActiveFilter(filtro);
-}
   async function liberarLugar(spot) {
     if (!spot || !spot.activo) return;
     
@@ -280,25 +345,24 @@ function aplicarFiltro(filtro) {
     const horaAsignacion = ahora.toLocaleTimeString('es-AR');
     const fechaAsignacion = ahora.toISOString().split('T')[0];
     
-    // 1. Liberar lugar anterior
     await supabase
       .from("parking_assignments")
       .update({ activo: false, medico_nombre: null, medico_matricula: null, vehiculo_id: null })
       .eq("vehiculo_id", vehiculoAMover.id);
     
-    // 2. Ocupar nuevo lugar
     const { error } = await supabase
       .from("parking_assignments")
-      .upsert({
-        lugar: nuevoSpot.lugar,
+      .update({
         activo: true,
         medico_nombre: vehiculoAMover.nombre,
         medico_matricula: vehiculoAMover.matricula,
         tipo_medico: vehiculoAMover.tipo,
         vehiculo_id: vehiculoAMover.id,
         fecha_asignacion: fechaAsignacion,
-        hora_asignacion: horaAsignacion
-      });
+        hora_asignacion: horaAsignacion,
+        habilitado: true
+      })
+      .eq("id", nuevoSpot.id);
     
     if (!error) {
       toast.success(`🚗 ${vehiculoAMover.nombre} movido a lugar ${nuevoSpot.lugar}`);
@@ -313,22 +377,36 @@ function aplicarFiltro(filtro) {
   function cancelarMover() {
     setModoMover(false);
     setVehiculoAMover(null);
-    toast.info("Movimiento cancelado");
+    toast.success("Movimiento cancelado");
   }
 
-  function actualizarStats(spotsData) {
-    const ocupados = spotsData.filter(s => s.activo === true).length;
-    const libres = spotsData.length - ocupados;
-    const porcentaje = spotsData.length > 0 ? Math.round((ocupados / spotsData.length) * 100) : 0;
-    
-    const libresEl = document.getElementById("libresCount");
-    const ocupadosEl = document.getElementById("ocupadosCount");
-    const porcentajeEl = document.getElementById("porcentajeCount");
-    
-    if (libresEl) libresEl.innerText = libres;
-    if (ocupadosEl) ocupadosEl.innerText = ocupados;
-    if (porcentajeEl) porcentajeEl.innerText = `${porcentaje}%`;
-  }
+function actualizarStats(spotsData) {
+  // Filtrar lugares deshabilitados (NO se cuentan)
+  const lugaresHabilitados = spotsData.filter(s => s.habilitado !== false);
+  const lugaresDeshabilitados = spotsData.filter(s => s.habilitado === false);
+  
+  // Calcular solo sobre lugares HABILITADOS
+  const ocupados = lugaresHabilitados.filter(s => s.activo === true).length;
+  const libres = lugaresHabilitados.length - ocupados;
+  const totalHabilitados = lugaresHabilitados.length;
+  
+  const deshabilitadosEl = document.getElementById("deshabilitadosCount");
+if (deshabilitadosEl) deshabilitadosEl.innerText = lugaresDeshabilitados.length;
+  // Porcentaje sobre lugares habilitados
+  const porcentaje = totalHabilitados > 0 ? Math.round((ocupados / totalHabilitados) * 100) : 0;
+  
+  // Mostrar estadísticas
+  const libresEl = document.getElementById("libresCount");
+  const ocupadosEl = document.getElementById("ocupadosCount");
+  const porcentajeEl = document.getElementById("porcentajeCount");
+  
+  if (libresEl) libresEl.innerText = libres;
+  if (ocupadosEl) ocupadosEl.innerText = ocupados;
+  if (porcentajeEl) porcentajeEl.innerText = `${porcentaje}%`;
+  
+  // Opcional: mostrar también cuántos lugares están deshabilitados
+  console.log(`📊 Lugares deshabilitados: ${lugaresDeshabilitados.length}`);
+}
 
   const filteredVehicles = activeVehicles.filter(v =>
     v.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -339,18 +417,27 @@ function aplicarFiltro(filtro) {
   function scrollToBottom() { window.scrollTo({ behavior: "smooth", top: document.body.scrollHeight }); }
 
   return (
-
-    
     <div id="parkingVirtualSection" className="page-section">
       {/* Header */}
       <div className="parking-header-premium">
         <div className="parking-title-premium">
-          <div className="logo-universal" style={{ margin: 0 }}><img src="/seguridad.png" alt="Logo" style={{ height: "45px" }} /></div>
-          <div><h2>Parking Virtual</h2><p>Distribución en tiempo real</p></div>
+          <div className="logo-universal" style={{ margin: 0 }}>
+            <img src="/seguridad.png" alt="Logo" style={{ height: "45px" }} />
+          </div>
+          <div>
+            <h2>Parking Virtual</h2>
+            <p>Distribución en tiempo real</p>
+          </div>
         </div>
+        
         <div className="stats-modernas">
           <div className="stat-card"><div className="stat-icon">🟢</div><div className="stat-value" id="libresCount">0</div><div className="stat-label">Libres</div></div>
           <div className="stat-card"><div className="stat-icon">🔴</div><div className="stat-value" id="ocupadosCount">0</div><div className="stat-label">Ocupados</div></div>
+          <div className="stat-card">
+            <div className="stat-icon">⚫</div>
+            <div className="stat-value" id="deshabilitadosCount">0</div>
+            <div className="stat-label">Deshab.</div>
+          </div>
           <div className="stat-card"><div className="stat-icon">📊</div><div className="stat-value" id="porcentajeCount">0%</div><div className="stat-label">Ocupación</div></div>
         </div>
       </div>
@@ -365,15 +452,15 @@ function aplicarFiltro(filtro) {
       </div>
 
       {/* Filtros */}
-        <div className="filtros-rapidos">
-        <button className={`filtro-btn ${activeFilter === 'todos' ? 'active' : ''}`} onClick={() => aplicarFiltro('todos')}>🎯 Todos</button>
-        <button className={`filtro-btn ${activeFilter === 'medicos' ? 'active' : ''}`} onClick={() => aplicarFiltro('medicos')}>👨‍⚕️ Médicos</button>
-        <button className={`filtro-btn ${activeFilter === 'junta' ? 'active' : ''}`} onClick={() => aplicarFiltro('junta')}>🏛️ Junta</button>
-        <button className={`filtro-btn ${activeFilter === 'libres' ? 'active' : ''}`} onClick={() => aplicarFiltro('libres')}>🟢 Libres</button>
-        <button className={`filtro-btn ${activeFilter === 'ocupados' ? 'active' : ''}`} onClick={() => aplicarFiltro('ocupados')}>🔴 Ocupados</button>
-        </div>
+      <div className="filtros-rapidos">
+        <button className={`filtro-btn ${activeFilter === 'todos' ? 'active' : ''}`} onClick={() => setActiveFilter('todos')}>🎯 Todos</button>
+        <button className={`filtro-btn ${activeFilter === 'medicos' ? 'active' : ''}`} onClick={() => setActiveFilter('medicos')}>👨‍⚕️ Médicos</button>
+        <button className={`filtro-btn ${activeFilter === 'junta' ? 'active' : ''}`} onClick={() => setActiveFilter('junta')}>🏛️ Junta</button>
+        <button className={`filtro-btn ${activeFilter === 'libres' ? 'active' : ''}`} onClick={() => setActiveFilter('libres')}>🟢 Libres</button>
+        <button className={`filtro-btn ${activeFilter === 'ocupados' ? 'active' : ''}`} onClick={() => setActiveFilter('ocupados')}>🔴 Ocupados</button>
+      </div>
 
-      {/* Modo mover activo - indicador */}
+      {/* Modo mover activo */}
       {modoMover && (
         <div className="bg-amber-500/20 border border-amber-500 rounded-xl p-3 mb-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -407,7 +494,7 @@ function aplicarFiltro(filtro) {
       {/* MODAL */}
       {showModal && selectedSpot && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-2xl max-w-md w-full border border-amber-500/30 shadow-2xl">
+          <div className="bg-slate-800 rounded-2xl max-w-md w-full border border-amber-500/30">
             <div className={`rounded-t-2xl p-5 ${selectedSpot.activo ? 'bg-gradient-to-r from-red-600 to-red-700' : 'bg-gradient-to-r from-amber-500 to-orange-600'}`}>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
@@ -432,7 +519,6 @@ function aplicarFiltro(filtro) {
             <div className="p-5">
               {selectedSpot.activo ? (
                 <div className="space-y-4">
-                  {/* Información del médico */}
                   <div className="bg-slate-700/50 rounded-xl p-4">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
@@ -448,48 +534,79 @@ function aplicarFiltro(filtro) {
                     </div>
                   </div>
 
-                  {/* Botones de acción */}
                   <div className="flex gap-3">
-                    <button onClick={() => liberarLugar(selectedSpot)} className="flex-1 bg-slate-600 hover:bg-slate-700 py-3 rounded-xl font-semibold text-white flex items-center justify-center gap-2 transition">
+                    <button onClick={() => liberarLugar(selectedSpot)} className="flex-1 bg-slate-600 hover:bg-slate-700 py-3 rounded-xl font-semibold text-white flex items-center justify-center gap-2">
                       <RefreshCw className="w-5 h-5" />
                       Liberar lugar
                     </button>
-                    <button onClick={() => darSalida(selectedSpot)} className="flex-1 bg-gradient-to-r from-red-600 to-red-700 py-3 rounded-xl font-semibold text-white flex items-center justify-center gap-2 transition">
+                    <button onClick={() => darSalida(selectedSpot)} className="flex-1 bg-gradient-to-r from-red-600 to-red-700 py-3 rounded-xl font-semibold text-white flex items-center justify-center gap-2">
                       <LogOut className="w-5 h-5" />
                       Dar salida
                     </button>
                   </div>
 
-                  <button onClick={() => iniciarMover(selectedSpot)} className="w-full bg-amber-600 hover:bg-amber-700 py-3 rounded-xl font-semibold text-white flex items-center justify-center gap-2 transition">
+                  <button onClick={() => iniciarMover(selectedSpot)} className="w-full bg-amber-600 hover:bg-amber-700 py-3 rounded-xl font-semibold text-white flex items-center justify-center gap-2">
                     <Move className="w-5 h-5" />
                     Mover a otro lugar
                   </button>
                 </div>
               ) : (
                 <div>
-                  <p className="text-white mb-3 flex items-center gap-2">Seleccionar vehículo dentro:</p>
-                  <div className="relative mb-4">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input type="text" placeholder="Buscar por nombre o matrícula..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-700 rounded-lg py-2 pl-10 pr-3 text-white" />
+                  <div className="flex justify-between items-center mb-3">
+                    <p className="text-white">Seleccionar vehículo dentro:</p>
+                    <button
+                      onClick={() => toggleHabilitarLugar(selectedSpot)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                        selectedSpot.habilitado === false 
+                          ? 'bg-green-600/20 text-green-400' 
+                          : 'bg-red-600/20 text-red-400'
+                      }`}
+                    >
+                      {selectedSpot.habilitado === false ? '✅ Habilitar lugar' : '🚫 Deshabilitar lugar'}
+                    </button>
                   </div>
-                  <div className="max-h-60 overflow-y-auto space-y-2">
-                    {filteredVehicles.length === 0 ? (
-                    <p className="text-slate-400 text-center py-4">No hay vehículos dentro</p>
-                    ) : (
-                    filteredVehicles.map((v) => (
-                        <div
-                        key={v.id}
-                        onClick={() => asignarLugar(v)}
-                        className={`bg-slate-700 p-3 rounded-lg cursor-pointer transition ${
-                            asignando ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-500/20'
-                        }`}
-                        >
-                        <p className="text-white font-medium">{v.nombre}</p>
-                        <p className="text-slate-400 text-sm">{v.matricula}</p>
-                        </div>
-                    ))
-                    )}
-                  </div>
+                  
+                  {selectedSpot.habilitado === false ? (
+                    <div className="bg-slate-700/50 rounded-xl p-6 text-center">
+                      <p className="text-amber-400 mb-2">📍 Este lugar está deshabilitado</p>
+                      <p className="text-slate-400 text-sm">No se pueden asignar vehículos hasta que se habilite</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="relative mb-4">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Buscar por nombre o matrícula..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="w-full bg-slate-700 border border-slate-600 rounded-lg py-2 pl-10 pr-3 text-white text-sm focus:border-amber-500 focus:outline-none"
+                        />
+                      </div>
+                      
+                      <div className="max-h-60 overflow-y-auto space-y-2">
+                        {filteredVehicles.length === 0 ? (
+                          <p className="text-slate-400 text-center py-4">No hay vehículos dentro</p>
+                        ) : (
+                          filteredVehicles.map((v) => (
+                            <div
+                              key={v.id}
+                              onClick={() => asignarLugar(v)}
+                              className={`bg-slate-700 p-3 rounded-lg cursor-pointer transition ${
+                                asignando ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-500/20'
+                              }`}
+                            >
+                              <p className="text-white font-medium">{v.nombre}</p>
+                              <p className="text-slate-400 text-sm">{v.matricula}</p>
+                              {v.sin_tarjeta && (
+                                <p className="text-red-400 text-xs mt-1">⚠️ Sin tarjeta</p>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
