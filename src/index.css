@@ -1441,3 +1441,31 @@
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
 }
 
+/* Scroll horizontal para tablas en móvil */
+@media (max-width: 768px) {
+  .table-modern-container,
+  .overflow-x-auto {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  
+  .table-modern {
+    min-width: 600px !important;
+    width: max-content !important;
+  }
+  
+  .table-modern th,
+  .table-modern td {
+    white-space: nowrap !important;
+  }
+}
+
+/* Forzar scroll en cualquier tabla */
+.table-scrollable {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-scrollable table {
+  min-width: 600px;
+}
