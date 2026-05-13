@@ -58,9 +58,19 @@ export async function registerVehicle(vehicleData) {
 // Dar salida a un vehículo
 export async function exitVehicle(vehicleId, vehicleNombre, vehicleMatricula) {
   try {
-    const horaActual = new Date().toLocaleTimeString('es-AR', { hour12: false });
+    console.log("🚗 Eliminando vehículo:", vehicleId, vehicleNombre);
+    
+    // 1. Eliminar de active_vehicles
+    const { error: deleteError } = await supabase
+      .from("active_vehicles")
+      .delete()
+      .eq("id", vehicleId);
 
-    // 1. Actualizar history
+    if (deleteError) throw deleteError;
+    console.log("✅ Vehículo eliminado de active_vehicles");
+
+    // 2. Actualizar history
+    const horaSalida = new Date().toLocaleTimeString('es-AR');
     const { error: updateError } = await supabase
       .from("history")
       .update({ hora_salida: horaSalida })
@@ -68,23 +78,11 @@ export async function exitVehicle(vehicleId, vehicleNombre, vehicleMatricula) {
       .eq("matricula", vehicleMatricula)
       .is("hora_salida", null);
 
-    if (updateError) {
-      return { success: false, error: updateError.message };
-    }
-
-    // 2. Eliminar de active_vehicles
-    const { error: deleteError } = await supabase
-      .from("active_vehicles")
-      .delete()
-      .eq("id", vehicleId);
-
-    if (deleteError) {
-      return { success: false, error: deleteError.message };
-    }
-
-    return { success: true };
+    if (updateError) console.error("Error actualizando history:", updateError);
     
+    return { success: true };
   } catch (error) {
+    console.error("Error en exitVehicle:", error);
     return { success: false, error: error.message };
   }
 }

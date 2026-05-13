@@ -93,12 +93,12 @@ export default function Layout() {
       )}
 
       {/* Sidebar */}
-<div className={`
-  transition-transform duration-300 ease-in-out
-  ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-`} style={{ height: "100vh", position: "fixed", top: 0, left: 0, zIndex: 50 }}>
-  <Sidebar onClose={() => setMobileMenuOpen(false)} />
-</div>
+  <div className={`
+    fixed lg:relative z-50 transition-transform duration-300 ease-in-out h-full
+    ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+  `}>
+    <Sidebar onClose={() => setMobileMenuOpen(false)} />
+  </div>
 
       {/* Contenido principal */}
       <div className="flex-1 flex flex-col overflow-hidden w-full">

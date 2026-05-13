@@ -5,7 +5,6 @@ import { exitVehicle } from "../../services/activeVehiclesService";
 import { Search, Car, Clock, AlertCircle, LogOut, User, Building2, Star, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 import { addLog } from "../../services/logsService";
-
 import RegisterVehicleModal from "../../components/modals/RegisterVehicleModal";
 
 export default function ActiveVehiclesPage() {
@@ -16,31 +15,11 @@ export default function ActiveVehiclesPage() {
   const [exitModal, setExitModal] = useState(null);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [quickType, setQuickType] = useState("Medico");
-
-
   
   const capacidadTotal = 37;
 
-  useEffect(() => {
-    loadVehicles();
-
-    const channel = supabase
-      .channel("active-vehicles-realtime")
-      .on("postgres_changes", 
-        { event: "*", schema: "public", table: "active_vehicles" }, 
-        () => {
-          console.log("🔄 Cambio detectado, recargando...");
-          loadVehicles();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
   async function loadVehicles() {
+    console.log("🔄 Cargando vehículos...");
     setLoading(true);
     
     const { data, error } = await supabase
@@ -51,7 +30,6 @@ export default function ActiveVehiclesPage() {
     if (error) {
       console.error("Error cargando:", error);
     } else {
-      console.log("📊 Vehículos encontrados:", data?.length);
       setVehicles(data || []);
       setFilteredVehicles(data || []);
     }
@@ -59,6 +37,24 @@ export default function ActiveVehiclesPage() {
     setLoading(false);
   }
 
+  // Cargar al inicio
+  useEffect(() => {
+    loadVehicles();
+    
+    // Escuchar evento personalizado para recargar desde el modal
+    const handleReload = () => {
+      console.log("📢 Evento recargar recibido");
+      loadVehicles();
+    };
+    
+    window.addEventListener('reload-vehicles', handleReload);
+    
+    return () => {
+      window.removeEventListener('reload-vehicles', handleReload);
+    };
+  }, []);
+
+  // Filtrar
   useEffect(() => {
     if (!searchTerm.trim()) {
       setFilteredVehicles(vehicles);
@@ -80,6 +76,8 @@ export default function ActiveVehiclesPage() {
       
       toast.success(`🚗 ${vehicle.nombre} salió del estacionamiento`);
       setExitModal(null);
+      // 👇 Recargar solo la lista, no la página
+      await loadVehicles();
     } else {
       toast.error(`❌ Error: ${result.error}`);
     }
@@ -127,54 +125,61 @@ export default function ActiveVehiclesPage() {
   const totalOcupados = vehicles.length;
   const porcentajeOcupacion = totalOcupados > 0 ? Math.round((totalOcupados / capacidadTotal) * 100) : 0;
 
+  const getSelectorColor = (tipo) => {
+    switch (tipo) {
+      case "Medico": return "bg-blue-600/80 hover:bg-blue-700";
+      case "Junta": return "bg-purple-600/80 hover:bg-purple-700";
+      case "Reserva": return "bg-green-600/80 hover:bg-green-700";
+      default: return "bg-slate-600";
+    }
+  };
+
   return (
     <div>
-      {/* Header con botón rápido */}
-<div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
-  <div>
-    <h1 className="text-2xl font-bold text-white">Vehículos dentro</h1>
-    <p className="text-slate-400 text-sm mt-1">Vehículos actualmente estacionados</p>
-  </div>
-  
-  <div className="flex items-center gap-3">
-    {/* Selector de tipo rápido */}
-    <select
-      value={quickType}
-      onChange={(e) => setQuickType(e.target.value)}
-      className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm focus:border-amber-500 focus:outline-none"
-    >
-      <option value="Medico">👨‍⚕️ Médico</option>
-      <option value="Junta">🏛️ Junta</option>
-      <option value="Reserva">⭐ Reserva</option>
-    </select>
-    
-    {/* Botón rápido */}
-    <button
-      onClick={() => setShowRegisterModal(true)}
-      className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition shadow-lg"
-    >
-      <Plus className="w-4 h-4" />
-      <span className="hidden sm:inline">Registrar</span>
-    </button>
-    
-    {/* Buscador */}
-    <div className="relative">
-      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-      <input
-        type="text"
-        placeholder="Buscar..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        className="w-full sm:w-64 bg-slate-800 border border-slate-700 rounded-xl py-2.5 pl-10 pr-4 text-white text-sm focus:border-amber-500 focus:outline-none"
-      />
-    </div>
-    
-    {/* Contador */}
-    <div className="bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-2 rounded-xl font-bold text-white">
-      {totalOcupados}/{capacidadTotal}
-    </div>
-  </div>
-</div>
+      {/* Header */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Vehículos dentro</h1>
+          <p className="text-slate-400 text-sm mt-1">Vehículos actualmente estacionados</p>
+        </div>
+        
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <select
+              value={quickType}
+              onChange={(e) => setQuickType(e.target.value)}
+              className={`${getSelectorColor(quickType)} text-white px-3 py-2 rounded-xl text-sm font-medium border-none cursor-pointer transition`}
+            >
+              <option value="Medico" className="bg-slate-800">👨‍⚕️ Médico</option>
+              <option value="Junta" className="bg-slate-800">🏛️ Junta</option>
+              <option value="Reserva" className="bg-slate-800">⭐ Reserva</option>
+            </select>
+            
+            <button
+              onClick={() => setShowRegisterModal(true)}
+              className={`${getSelectorColor(quickType)} text-white px-4 py-2 rounded-xl flex items-center gap-2 transition shadow-lg`}
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Registrar</span>
+            </button>
+          </div>
+          
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Buscar..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full sm:w-64 bg-slate-800 border border-slate-700 rounded-xl py-2.5 pl-10 pr-4 text-white text-sm focus:border-amber-500 focus:outline-none"
+            />
+          </div>
+          
+          <div className="bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-2 rounded-xl font-bold text-white">
+            {totalOcupados}/{capacidadTotal}
+          </div>
+        </div>
+      </div>
 
       {/* Barra de ocupación */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-6">
@@ -266,18 +271,16 @@ export default function ActiveVehiclesPage() {
       {/* Modal de registro rápido */}
       <RegisterVehicleModal 
         open={showRegisterModal} 
-        onClose={() => setShowRegisterModal(false)} 
-        onSuccess={() => {
-          loadVehicles();
+        onClose={() => {
           setShowRegisterModal(false);
-        }}
+          loadVehicles(); // Recargar solo la lista
+        }} 
         defaultType={quickType}
       />
     </div>
   );
 }
 
-// Componente de tarjeta
 function VehicleCard({ vehicle, onExit, getTipoIcon, getTipoColor, calcularTiempo }) {
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-amber-500/50 transition-all duration-300">

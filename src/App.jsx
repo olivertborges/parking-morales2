@@ -15,6 +15,8 @@ import LogsPage from "./pages/logs/LogsPage";
 import TVPage from "./pages/tv/TVPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { scheduleAutoBackup } from "./services/autoBackupService";
+import ReservasPage from "./pages/reservas/ReservasPage";
+
 
 function App() {
   useEffect(() => {
@@ -34,7 +36,11 @@ function App() {
           <Route path="doctors" element={<DoctorsPage />} />
           <Route path="parking" element={<ParkingPage />} />
           <Route path="parking-history" element={<ParkingHistoryPage />} />
-          
+          <Route path="reservas" element={
+            <ProtectedRoute adminOnly={true}>
+              <ReservasPage />
+            </ProtectedRoute>
+          } />
           {/* Rutas protegidas solo para admin */}
           <Route path="users" element={
             <ProtectedRoute adminOnly={true}>

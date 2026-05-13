@@ -9,7 +9,6 @@ export default function ParkingPage() {
   const [selectedSpot, setSelectedSpot] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [activeVehicles, setActiveVehicles] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
   const [modoMover, setModoMover] = useState(false);
   const [vehiculoAMover, setVehiculoAMover] = useState(null);
   const [asignando, setAsignando] = useState(false);
@@ -293,34 +292,40 @@ async function toggleHabilitarLugar(spot) {
     }
   }
 
-  async function darSalida(spot) {
-    if (!spot || !spot.activo) return;
-    
-    const horaSalida = new Date().toLocaleTimeString('es-AR');
-    const fechaSalida = new Date().toISOString().split('T')[0];
-    
-    await supabase
-      .from("parking_assignments")
-      .update({ activo: false, medico_nombre: null, medico_matricula: null, vehiculo_id: null })
-      .eq("id", spot.id);
-    
-    await supabase
-      .from("active_vehicles")
-      .delete()
-      .eq("id", spot.vehiculo_id);
-    
-    await supabase
-      .from("history")
-      .update({ hora_salida: horaSalida, fecha_salida: fechaSalida })
-      .eq("nombre", spot.medico_nombre)
-      .eq("matricula", spot.medico_matricula)
-      .is("hora_salida", null);
-    
-    toast.success(`✅ ${spot.medico_nombre} salió del estacionamiento`);
-    setShowModal(false);
-    loadParking();
-    loadActiveVehicles();
-  }
+// En ParkingPage.jsx, en la función darSalida
+async function darSalida(spot) {
+  if (!spot || !spot.activo) return;
+  
+  const horaSalida = new Date().toLocaleTimeString('es-AR');
+  const fechaSalida = new Date().toISOString().split('T')[0];
+  
+  // 1. Liberar lugar en parking_assignments
+  await supabase
+    .from("parking_assignments")
+    .update({ activo: false, medico_nombre: null, medico_matricula: null, vehiculo_id: null })
+    .eq("id", spot.id);
+  
+  // 2. Eliminar de active_vehicles
+  await supabase
+    .from("active_vehicles")
+    .delete()
+    .eq("id", spot.vehiculo_id);
+  
+  // 3. Actualizar history
+  await supabase
+    .from("history")
+    .update({ hora_salida: horaSalida, fecha_salida: fechaSalida })
+    .eq("nombre", spot.medico_nombre)
+    .eq("matricula", spot.medico_matricula)
+    .is("hora_salida", null);
+  
+  toast.success(`✅ ${spot.medico_nombre} salió del estacionamiento`);
+  setShowModal(false);
+  
+  // 4. Recargar datos (opcional, la suscripción lo hará automáticamente)
+  loadParking();
+  // loadActiveVehicles(); // La suscripción recargará esto automáticamente
+}
 
   async function iniciarMover(spot) {
     setVehiculoAMover({
@@ -381,41 +386,41 @@ async function toggleHabilitarLugar(spot) {
   }
 
 function actualizarStats(spotsData) {
-    // 📌 Definir lugares INVISIBLES
-      const lugaresInvisibles = [
-          "Z7","Z8","Z9","Z10","Z11",
-              "W1","W4","W5","W6","W7","W8",
-                  "T1","T4","T5","T6","T7","T8","T12","T13","T14"
-                    ];
-                      
-                        // 👇 Filtrar SOLO lugares VISIBLES
-                          const lugaresVisibles = spotsData.filter(spot => !lugaresInvisibles.includes(spot.lugar));
-                            
-                              // Contar sobre lugares visibles
-                                const ocupados = lugaresVisibles.filter(spot => spot.activo === true && spot.habilitado !== false).length;
-                                  const libres = lugaresVisibles.filter(spot => spot.activo === false && spot.habilitado !== false).length;
-                                    const totalVisibles = lugaresVisibles.length;
-                                      
-                                        // Calcular porcentaje sobre visibles
-                                          const porcentaje = totalVisibles > 0 ? Math.round((ocupados / totalVisibles) * 100) : 0;
-                                            
-                                              // Actualizar el DOM
-                                                const libresEl = document.getElementById("libresCount");
-                                                  const ocupadosEl = document.getElementById("ocupadosCount");
-                                                    const porcentajeEl = document.getElementById("porcentajeCount");
-                                                      
-                                                        if (libresEl) libresEl.innerText = libres;
-                                                          if (ocupadosEl) ocupadosEl.innerText = ocupados;
-                                                            if (porcentajeEl) porcentajeEl.innerText = `${porcentaje}%`;
-                                                              
-                                                                console.log(`📊 Visibles: ${totalVisibles} | Ocupados: ${ocupados} | Libres: ${libres} | %: ${porcentaje}`);
-                                                                }
+  // Definir lugares INVISIBLES
+  const lugaresInvisibles = [
+    "Z7","Z8","Z9","Z10","Z11",
+    "W1","W4","W5","W6","W7","W8",
+    "T1","T4","T5","T6","T7","T8","T12","T13","T14"
+  ];
+  
+  // Filtrar SOLO lugares VISIBLES
+  const lugaresVisibles = spotsData.filter(spot => !lugaresInvisibles.includes(spot.lugar));
+  
+  // Contar sobre lugares visibles
+  const ocupados = lugaresVisibles.filter(spot => spot.activo === true && spot.habilitado !== false).length;
+  const libres = lugaresVisibles.filter(spot => spot.activo === false && spot.habilitado !== false).length;
+  const bloqueados = lugaresVisibles.filter(spot => spot.habilitado === false).length;
+  const totalVisibles = lugaresVisibles.length;
+  
+  // Calcular porcentaje sobre visibles (excluyendo bloqueados)
+  const totalActivos = ocupados + libres;
+  const porcentaje = totalActivos > 0 ? Math.round((ocupados / totalActivos) * 100) : 0;
+  
+  // Actualizar el DOM
+  const libresEl = document.getElementById("libresCount");
+  const ocupadosEl = document.getElementById("ocupadosCount");
+  const porcentajeEl = document.getElementById("porcentajeCount");
+  const bloqueadosEl = document.getElementById("deshabilitadosCount");
+  
+  if (libresEl) libresEl.innerText = libres;
+  if (ocupadosEl) ocupadosEl.innerText = ocupados;
+  if (porcentajeEl) porcentajeEl.innerText = `${porcentaje}%`;
+  if (bloqueadosEl) bloqueadosEl.innerText = bloqueados;
+  
+  console.log(`📊 Visibles: ${totalVisibles} | Ocupados: ${ocupados} | Libres: ${libres} | Bloqueados: ${bloqueados} | %: ${porcentaje}`);
 }
 
-  const filteredVehicles = activeVehicles.filter(v =>
-    v.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    v.matricula?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+
 
   function scrollToCol(colId) { document.getElementById(colId)?.scrollIntoView({ behavior: "smooth" }); }
   function scrollToBottom() { window.scrollTo({ behavior: "smooth", top: document.body.scrollHeight }); }
@@ -473,14 +478,7 @@ function actualizarStats(spotsData) {
 </div>
       </div>
 
-      {/* Mini-mapa */}
-      <div className="mini-map">
-        <div className="mini-spot" onClick={() => scrollToCol('col-s')}>S</div>
-        <div className="mini-spot" onClick={() => scrollToCol('col-z')}>Z</div>
-        <div className="mini-spot" onClick={() => scrollToCol('col-w')}>W</div>
-        <div className="mini-spot" onClick={() => scrollToCol('col-t')}>T</div>
-        <div className="mini-spot" onClick={() => scrollToBottom()}>X/Y</div>
-      </div>
+
 
       {/* Filtros */}
       <div className="filtros-rapidos">
@@ -505,12 +503,12 @@ function actualizarStats(spotsData) {
       {/* Mapa */}
       <div className="parking-map-premium">
         <div className="parking-title-row"><div className="col-label">S</div><div className="col-label">Z</div><div className="col-label">W</div><div className="col-label">T</div></div>
-        <div className="parking-columns">
-          <div className="parking-col" id="col-s"></div>
-          <div className="parking-col" id="col-z"></div>
-          <div className="parking-col" id="col-w"></div>
-          <div className="parking-col" id="col-t"></div>
-        </div>
+      <div className="parking-columns" style={{ gap: "4px", justifyContent: "space-between" }}>
+        <div className="parking-col" style={{ width: "60px" }} id="col-s"></div>
+        <div className="parking-col" style={{ width: "60px" }} id="col-z"></div>
+        <div className="parking-col" style={{ width: "60px" }} id="col-w"></div>
+        <div className="parking-col" style={{ width: "60px" }} id="col-t"></div>
+      </div>
         <div className="parking-bottom-premium"><div className="bottom-label">📍 LUGARES ESPECIALES</div><div className="bottom-spots" id="bottom-xy"></div></div>
       </div>
 
@@ -604,16 +602,7 @@ function actualizarStats(spotsData) {
                     </div>
                   ) : (
                     <>
-                      <div className="relative mb-4">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <input
-                          type="text"
-                          placeholder="Buscar por nombre o matrícula..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="w-full bg-slate-700 border border-slate-600 rounded-lg py-2 pl-10 pr-3 text-white text-sm focus:border-amber-500 focus:outline-none"
-                        />
-                      </div>
+   
                       
                       <div className="max-h-60 overflow-y-auto space-y-2">
                         {filteredVehicles.length === 0 ? (

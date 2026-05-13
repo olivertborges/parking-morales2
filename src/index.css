@@ -1012,37 +1012,432 @@
   border-color: rgba(100, 116, 139, 0.3);
 }
 
-/* Logo redondeado */
-.logo-universal img {
-  border-radius: 12px;  /* 👈 Agrega esquinas redondeadas */
-    object-fit: cover;
+/* Columnas más compactas */
+.parking-col {
+    width: 70px !important;  /* Reducido de 80px a 70px */
+    gap: 6px !important;     /* Reducido de 10px a 6px */
+}
+
+/* Columnas en tablet */
+@media (min-width: 768px) and (max-width: 1024px) {
+    .parking-col {
+        width: 60px !important;
+        gap: 5px !important;
     }
+}
 
-    /* Para el favicon (pestaña del navegador) */
-    link[rel="icon"] {
-      border-radius: 0;
-      }
+/* Columnas en desktop grande */
+@media (min-width: 1024px) {
+    .parking-col {
+        width: 65px !important;
+        gap: 6px !important;
+    }
+}
 
-      /* index.css */
-      body.loading::before {
-        content: "";
-          position: fixed;
-            top: 0;
-              left: 0;
-                width: 100%;
-                  height: 100%;
-                    background: #0f172a;
-                      display: flex;
-                        align-items: center;
-                          justify-content: center;
-                            z-index: 9999;
-                            }
+/* Contenedor de columnas - reducir gap */
+.parking-columns {
+    display: flex;
+    justify-content: space-around;
+    gap: 8px !important;    /* Reducido de 20px a 8px */
+    flex-wrap: wrap;
+}
 
-                            body.loading::after {
-                              content: url("/logo-grande.png");
-                                position: fixed;
-                                  top: 50%;
-                                    left: 50%;
-                                      transform: translate(-50%, -50%);
-                                        z-index: 10000;
-                                        }
+/* Títulos de columnas más compactos */
+.col-label {
+    width: 70px !important;
+    font-size: 12px !important;
+}
+
+/* Lugares más compactos */
+.parking-spot {
+    padding: 8px 3px !important;  /* Reducido de 14px a 8px */
+    min-height: 55px !important;   /* Reducido de 70px a 55px */
+}
+
+.spot-number {
+    font-size: 12px !important;    /* Reducido de 14px a 12px */
+}
+
+.spot-doctor {
+    font-size: 8px !important;     /* Reducido de 9px a 8px */
+    margin-top: 3px !important;
+}
+
+/* Mapa con menos padding */
+.parking-map-premium {
+    padding: 16px !important;      /* Reducido de 24px a 16px */
+}
+
+/* Título de fila más compacto */
+.parking-title-row {
+    margin-bottom: 12px !important;
+    padding-bottom: 8px !important;
+}
+
+/* Contenedor principal del Parking Virtual */
+.parking-virtual-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header fijo - no hace scroll */
+.parking-header-fixed {
+  position: sticky;
+  top: 0;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(10px);
+  z-index: 30;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+/* Contenedor del mapa con scroll */
+.parking-map-scroll {
+  flex: 1;
+  overflow-y: auto;
+  max-height: calc(100vh - 280px);
+  padding-right: 4px;
+}
+
+/* Scroll personalizado */
+.parking-map-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.parking-map-scroll::-webkit-scrollbar-track {
+  background: #1e293b;
+  border-radius: 10px;
+}
+
+.parking-map-scroll::-webkit-scrollbar-thumb {
+  background: #f59e0b;
+  border-radius: 10px;
+}
+
+/* Ajuste para móvil */
+@media (max-width: 768px) {
+  .parking-map-scroll {
+    max-height: calc(100vh - 240px);
+  }
+}
+
+/* ========== TABLAS MODERNAS ========== */
+
+/* Contenedor de tabla con efecto glassmorphism */
+.table-modern-container {
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(8px);
+  border-radius: 1rem;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  overflow: hidden;
+}
+
+/* Tabla moderna */
+.table-modern {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Cabecera de tabla */
+.table-modern thead tr {
+  background: linear-gradient(135deg, #1e293b, #0f172a);
+}
+
+.table-modern th {
+  padding: 1rem;
+  text-align: left;
+  color: #f59e0b;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+/* Filas de la tabla */
+.table-modern tbody tr {
+  transition: all 0.2s ease;
+}
+
+.table-modern tbody tr:hover {
+  background: rgba(245, 158, 11, 0.05);
+  transform: scale(1.01);
+}
+
+.table-modern td {
+  padding: 0.875rem 1rem;
+  color: #e2e8f0;
+  font-size: 0.875rem;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+}
+
+/* Última fila sin borde */
+.table-modern tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Badges dentro de tablas */
+.table-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.table-badge-blue {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.table-badge-purple {
+  background: rgba(139, 92, 246, 0.15);
+  color: #a78bfa;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+.table-badge-green {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.table-badge-red {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.table-badge-amber {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+/* Scrollbar personalizado para tablas */
+.table-modern-container::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+.table-modern-container::-webkit-scrollbar-track {
+  background: #1e293b;
+  border-radius: 10px;
+}
+
+.table-modern-container::-webkit-scrollbar-thumb {
+  background: #f59e0b;
+  border-radius: 10px;
+}
+
+/* Animación de entrada para filas */
+.table-modern tbody tr {
+  animation: fadeInUp 0.3s ease-out forwards;
+  opacity: 0;
+}
+
+.table-modern tbody tr:nth-child(1) { animation-delay: 0.05s; }
+.table-modern tbody tr:nth-child(2) { animation-delay: 0.1s; }
+.table-modern tbody tr:nth-child(3) { animation-delay: 0.15s; }
+.table-modern tbody tr:nth-child(4) { animation-delay: 0.2s; }
+.table-modern tbody tr:nth-child(5) { animation-delay: 0.25s; }
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive para tablas en móvil */
+@media (max-width: 768px) {
+  .table-modern th,
+  .table-modern td {
+    padding: 0.625rem 0.75rem;
+    font-size: 0.75rem;
+  }
+  
+  .table-modern th {
+    font-size: 0.65rem;
+  }
+}
+/* Contenedor principal de la página */
+.page-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Header fijo */
+.page-header-fixed {
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  background: #0f172a;
+  z-index: 20;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+/* Contenedor de tabla con scroll */
+.table-scroll-container {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  border-radius: 1rem;
+}
+
+/* Scroll personalizado */
+.table-scroll-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.table-scroll-container::-webkit-scrollbar-track {
+  background: #1e293b;
+  border-radius: 10px;
+}
+
+.table-scroll-container::-webkit-scrollbar-thumb {
+  background: #f59e0b;
+  border-radius: 10px;
+}
+
+/* Tabla dentro del contenedor con scroll */
+.table-scroll-container .table-modern {
+  width: 100%;
+}
+
+/* Ajuste para que el header de la tabla también se vea bien */
+.table-scroll-container thead th {
+  position: sticky;
+  top: 0;
+  background: #1e293b;
+  z-index: 10;
+}
+
+/* Corrección para tablet (entre 768px y 1024px) */
+@media (min-width: 768px) and (max-width: 1024px) {
+  /* En tablet, el sidebar debe comportarse como móvil */
+  .lg\:ml-64 {
+    margin-left: 0 !important;
+  }
+  
+  .lg\:relative {
+    position: fixed !important;
+  }
+  
+  .lg\:translate-x-0 {
+    transform: translateX(-100%) !important;
+  }
+  
+  /* Cuando el sidebar está abierto en tablet */
+  .translate-x-0 {
+    transform: translateX(0) !important;
+  }
+}
+
+/* Fondo del modal (overlay) */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5); /* Fondo negro semitransparente */
+  backdrop-filter: blur(2px); /*opcional: difumina el fondo */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+/* Contenido del modal */
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  z-index: 1001;
+}
+
+/* Forzar modal a pantalla completa */
+.modal-fullscreen {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0, 0, 0, 0.7) !important;
+  backdrop-filter: blur(8px) !important;
+  z-index: 9999 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.modal-fullscreen > div {
+  max-width: 90%;
+  max-height: 90%;
+  overflow: auto;
+}
+.modal-force-fullscreen {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0, 0, 0, 0.75) !important;
+  backdrop-filter: blur(10px) !important;
+  z-index: 99999 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.modal-force-fullscreen > * {
+  max-width: 90% !important;
+  max-height: 90% !important;
+  overflow: auto !important;
+}
+
+/* Clase específica para el modal de registro */
+.register-modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0, 0, 0, 0.8) !important;
+  backdrop-filter: blur(8px) !important;
+  z-index: 99999 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.register-modal-container {
+  max-width: 500px !important;
+  width: 90% !important;
+  max-height: 85vh !important;
+  overflow-y: auto !important;
+  background: #1e293b !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(245, 158, 11, 0.3) !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+}
+

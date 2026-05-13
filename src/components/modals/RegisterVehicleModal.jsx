@@ -1,10 +1,11 @@
 // src/components/modals/RegisterVehicleModal.jsx
-import { useState, useRef, useEffect } from "react";
-import { X, Camera, Clock, AlertCircle, User, Car, Calendar, Sparkles } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { X, Clock, Camera, AlertCircle, Sparkles, UserPlus, Search } from "lucide-react";
 import { registerVehicle } from "../../services/vehicleService";
+import { supabase } from "../../services/supabase";
 import toast from "react-hot-toast";
 import { addLog } from "../../services/logsService";
-import CameraOCR from "../ocr/CameraOCR";
+import Tesseract from "tesseract.js";
 
 export default function RegisterVehicleModal({ open, onClose, onSuccess, defaultType = "Medico" }) {
   const [formData, setFormData] = useState({
@@ -19,123 +20,243 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showCamera, setShowCamera] = useState(false);
-  const [showCameraOCR, setShowCameraOCR] = useState(false);
-  const [matriculaFormat, setMatriculaFormat] = useState("formato1");
+  const [buscandoDoctor, setBuscandoDoctor] = useState(false);
+  const [mostrarOCR, setMostrarOCR] = useState(false);
+  const [ocrProcesando, setOcrProcesando] = useState(false);
+  const [doctorEncontrado, setDoctorEncontrado] = useState(null);
+  const [mostrarAgregarDoctor, setMostrarAgregarDoctor] = useState(false);
+  const [nuevoDoctor, setNuevoDoctor] = useState({ nombre: "", matricula: "", especialidad: "" });
   
   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
   const streamRef = useRef(null);
+  const ultimaMatriculaBuscada = useRef("");
 
-  useEffect(() => {
-    if (open) {
-      setFormData(prev => ({
-        ...prev,
-        tipo: defaultType
-      }));
-    }
-  }, [defaultType, open]);
-
-  const getColors = () => {
-    const tipo = formData.tipo;
-    if (tipo === "Medico") {
-      return {
-        bg: "from-blue-500 to-blue-600",
-        border: "border-blue-500/30",
-        iconBg: "bg-blue-500/20",
-        iconColor: "text-blue-400",
-        buttonBg: "from-blue-500 to-blue-600",
-        glow: "shadow-blue-500/30"
-      };
-    }
-    if (tipo === "Junta") {
-      return {
-        bg: "from-purple-500 to-purple-600",
-        border: "border-purple-500/30",
-        iconBg: "bg-purple-500/20",
-        iconColor: "text-purple-400",
-        buttonBg: "from-purple-500 to-purple-600",
-        glow: "shadow-purple-500/30"
-      };
-    }
-    if (tipo === "Reserva") {
-      return {
-        bg: "from-green-500 to-green-600",
-        border: "border-green-500/30",
-        iconBg: "bg-green-500/20",
-        iconColor: "text-green-400",
-        buttonBg: "from-green-500 to-green-600",
-        glow: "shadow-green-500/30"
-      };
-    }
-    return {
-      bg: "from-amber-500 to-orange-600",
-      border: "border-amber-500/30",
-      iconBg: "bg-amber-500/20",
-      iconColor: "text-amber-400",
-      buttonBg: "from-amber-500 to-orange-600",
-      glow: "shadow-amber-500/30"
-    };
+  // Función para normalizar matrícula
+  const normalizarMatricula = (matricula) => {
+    if (!matricula) return "";
+    return matricula.replace(/\s/g, '').toUpperCase();
   };
 
-  const colors = getColors();
- 
-
-  if (!open) return null;
-
-  const formatMatricula = (value) => {
-    let cleaned = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-    if (matriculaFormat === "formato1" && cleaned.length > 3) {
-      cleaned = cleaned.slice(0, 3) + " " + cleaned.slice(3, 7);
-    } else if (matriculaFormat === "formato2" && cleaned.length > 1) {
-      cleaned = cleaned.slice(0, 1) + " " + cleaned.slice(1, 4);
-      if (cleaned.length > 5) cleaned = cleaned.slice(0, 5) + " " + cleaned.slice(5, 8);
-    } else if (matriculaFormat === "formato3" && cleaned.length > 3) {
-      cleaned = cleaned.slice(0, 3) + " " + cleaned.slice(3, 6);
+  // Función para formatear matrícula en tiempo real
+  const formatearMatriculaEnTiempoReal = (texto) => {
+    let limpio = texto.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (limpio.length === 0) return "";
+    
+    if (limpio.length <= 3) {
+      return limpio;
+    } else if (limpio.length <= 7 && /^[A-Z]{3}\d+$/.test(limpio)) {
+      return `${limpio.slice(0, 3)} ${limpio.slice(3)}`;
+    } else if (limpio.length <= 7 && /^[A-Z]\d+[A-Z]*$/.test(limpio)) {
+      if (limpio.length <= 4) {
+        return `${limpio.slice(0, 1)} ${limpio.slice(1)}`;
+      } else {
+        return `${limpio.slice(0, 1)} ${limpio.slice(1, 4)} ${limpio.slice(4)}`;
+      }
+    } else if (limpio.length <= 6 && /^[A-Z]{3}\d+$/.test(limpio)) {
+      return `${limpio.slice(0, 3)} ${limpio.slice(3)}`;
+    } else if (limpio.length <= 7 && /^[A-Z]\d{3}\d*$/.test(limpio)) {
+      if (limpio.length <= 4) {
+        return `${limpio.slice(0, 1)} ${limpio.slice(1)}`;
+      } else {
+        return `${limpio.slice(0, 1)} ${limpio.slice(1, 4)} ${limpio.slice(4)}`;
+      }
     }
-    return cleaned;
+    
+    return limpio;
   };
 
   const handleMatriculaChange = (e) => {
-    const formatted = formatMatricula(e.target.value);
-    setFormData({ ...formData, matricula: formatted });
+    const formateado = formatearMatriculaEnTiempoReal(e.target.value);
+    setFormData({ ...formData, matricula: formateado });
   };
 
-const setCurrentTime = () => {
-  setFormData({ ...formData, hora_entrada: new Date().toLocaleTimeString('es-AR', { hour12: false }) });
-};
+  // Buscar médico por matrícula
+  const buscarDoctorPorMatricula = async (matricula) => {
+    if (!matricula || matricula.length < 4) return null;
+    
+    const matriculaNormalizada = normalizarMatricula(matricula);
+    
+    const { data, error } = await supabase.from("doctors").select("*");
+    
+    if (error) {
+      console.error("Error en búsqueda:", error);
+      return null;
+    }
+    
+    const doctorEncontrado = data?.find(doctor => {
+      const doctorMatricula = normalizarMatricula(doctor.matricula || "");
+      return doctorMatricula === matriculaNormalizada;
+    });
+    
+    return doctorEncontrado || null;
+  };
 
-  const startCamera = async () => {
+  // Efecto para buscar cuando cambia la matrícula
+  useEffect(() => {
+    const buscar = async () => {
+      const matriculaLimpia = normalizarMatricula(formData.matricula);
+      
+      if (matriculaLimpia.length < 4) {
+        setDoctorEncontrado(null);
+        return;
+      }
+      if (ultimaMatriculaBuscada.current === matriculaLimpia) return;
+      ultimaMatriculaBuscada.current = matriculaLimpia;
+      
+      setBuscandoDoctor(true);
+      const doctor = await buscarDoctorPorMatricula(formData.matricula);
+      
+      if (doctor) {
+        setDoctorEncontrado(doctor);
+        setFormData(prev => ({
+          ...prev,
+          nombre: doctor.nombre,
+          tipo: doctor.tipo || "Medico"
+        }));
+        toast.success(`✅ Médico encontrado: ${doctor.nombre}`);
+        setMostrarAgregarDoctor(false);
+      } else {
+        setDoctorEncontrado(null);
+        setMostrarAgregarDoctor(true);
+      }
+      setBuscandoDoctor(false);
+    };
+    
+    const timeout = setTimeout(buscar, 800);
+    return () => clearTimeout(timeout);
+  }, [formData.matricula]);
+
+  // Agregar nuevo médico
+  const agregarNuevoDoctor = async () => {
+    if (!nuevoDoctor.nombre.trim()) {
+      toast.error("Ingrese el nombre del médico");
+      return;
+    }
+    
+    const { error } = await supabase.from("doctors").insert([{
+      nombre: nuevoDoctor.nombre,
+      matricula: normalizarMatricula(formData.matricula),
+      tipo: formData.tipo,
+      especialidad: nuevoDoctor.especialidad || null
+    }]);
+    
+    if (!error) {
+      toast.success(`✅ Médico ${nuevoDoctor.nombre} agregado correctamente`);
+      setMostrarAgregarDoctor(false);
+      setNuevoDoctor({ nombre: "", matricula: "", especialidad: "" });
+      setFormData(prev => ({ ...prev, nombre: nuevoDoctor.nombre }));
+      setDoctorEncontrado({ nombre: nuevoDoctor.nombre, matricula: formData.matricula });
+    } else {
+      toast.error("Error al agregar médico");
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      tipo: defaultType,
+      nombre: "",
+      matricula: "",
+      hora_entrada: new Date().toLocaleTimeString('es-AR', { hour12: false }),
+      sin_tarjeta: false,
+      motivo: "Olvidó",
+      observaciones: ""
+    });
+    setDoctorEncontrado(null);
+    setMostrarAgregarDoctor(false);
+    setNuevoDoctor({ nombre: "", matricula: "", especialidad: "" });
+    setError("");
+    ultimaMatriculaBuscada.current = "";
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  useEffect(() => {
+    if (open) {
+      resetForm();
+    }
+  }, [defaultType, open]);
+
+  // OCR
+  const abrirCamaraOCR = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.play();
       }
-      setShowCamera(true);
+      setMostrarOCR(true);
     } catch (err) {
-      toast.error("Error al acceder a la cámara");
+      toast.error("Error al acceder a la cámara: " + err.message);
     }
   };
 
-  const stopCamera = () => {
+  const cerrarCamaraOCR = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
-    setShowCamera(false);
+    setMostrarOCR(false);
   };
 
-  const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const context = canvasRef.current.getContext('2d');
-      canvasRef.current.width = videoRef.current.videoWidth;
-      canvasRef.current.height = videoRef.current.videoHeight;
-      context.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
-      alert("Captura tomada. Ingresa la matrícula manualmente.");
-      stopCamera();
+  const capturarYLeer = async () => {
+    if (!videoRef.current) return;
+    
+    setOcrProcesando(true);
+    
+    const canvas = document.createElement("canvas");
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    const context = canvas.getContext("2d");
+    context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    
+    try {
+      const { data: { text } } = await Tesseract.recognize(
+        canvas.toDataURL(),
+        'spa',
+        { logger: (m) => console.log(m) }
+      );
+      
+      const matriculaDetectada = formatearMatriculaEnTiempoReal(text);
+      
+      if (matriculaDetectada && matriculaDetectada.length >= 5) {
+        setFormData(prev => ({ ...prev, matricula: matriculaDetectada }));
+        toast.success(`Matrícula detectada: ${matriculaDetectada}`);
+        
+        const doctor = await buscarDoctorPorMatricula(matriculaDetectada);
+        if (doctor) {
+          setFormData(prev => ({ ...prev, nombre: doctor.nombre, tipo: doctor.tipo || "Medico" }));
+          toast.success(`✅ Médico encontrado: ${doctor.nombre}`);
+        }
+      } else {
+        toast.error("No se pudo detectar la matrícula");
+      }
+      
+      cerrarCamaraOCR();
+    } catch (err) {
+      toast.error("Error procesando imagen");
+    } finally {
+      setOcrProcesando(false);
     }
+  };
+
+  const getColors = () => {
+    const tipo = formData.tipo;
+    if (tipo === "Medico") return { bg: "from-blue-500 to-blue-600", border: "border-blue-500/30", buttonBg: "from-blue-500 to-blue-600" };
+    if (tipo === "Junta") return { bg: "from-purple-500 to-purple-600", border: "border-purple-500/30", buttonBg: "from-purple-500 to-purple-600" };
+    if (tipo === "Reserva") return { bg: "from-green-500 to-green-600", border: "border-green-500/30", buttonBg: "from-green-500 to-green-600" };
+    return { bg: "from-amber-500 to-orange-600", border: "border-amber-500/30", buttonBg: "from-amber-500 to-orange-600" };
+  };
+
+  const colors = getColors();
+
+  if (!open) return null;
+
+  const setCurrentTime = () => {
+    setFormData({ ...formData, hora_entrada: new Date().toLocaleTimeString('es-AR', { hour12: false }) });
   };
 
   const handleSubmit = async (e) => {
@@ -146,14 +267,14 @@ const setCurrentTime = () => {
     if (!formData.nombre.trim()) {
       setError("El nombre es obligatorio");
       setLoading(false);
-      toast.error("El nombre es obligatorio");
+      toast.error("❌ El nombre es obligatorio");
       return;
     }
 
     if (!formData.matricula.trim()) {
       setError("La matrícula es obligatoria");
       setLoading(false);
-      toast.error("La matrícula es obligatoria");
+      toast.error("❌ La matrícula es obligatoria");
       return;
     }
 
@@ -162,12 +283,12 @@ const setCurrentTime = () => {
     if (result.success) {
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       await addLog(user.nombre || "Anónimo", "REGISTRO_INGRESO", `${formData.nombre} - ${formData.matricula}`);
-      toast.success(`${formData.nombre} registrado correctamente`);
-      onClose();
+      
+      toast.success(`✅ Vehículo ${formData.nombre} registrado correctamente`);
+      handleClose();
       if (onSuccess) onSuccess();
-
     } else {
-      toast.error(`Error: ${result.error}`);
+      toast.error(`❌ Error: ${result.error}`);
       setError(result.error);
     }
     setLoading(false);
@@ -182,126 +303,189 @@ const setCurrentTime = () => {
     }
   };
 
-  const getTitle = () => {
-    switch (formData.tipo) {
-      case "Medico": return "Nuevo Ingreso - Médico";
-      case "Junta": return "Nuevo Ingreso - Junta Directiva";
-      case "Reserva": return "Nuevo Ingreso - Reserva";
-      default: return "Registrar Ingreso";
-    }
-  };
-
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className={`bg-slate-800 rounded-2xl max-w-lg w-full border ${colors.border} shadow-2xl`}>
-        {/* Header */}
-        <div className={`rounded-t-2xl bg-gradient-to-r ${colors.bg} p-5`}>
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
-                <span className="text-3xl">{getIcon()}</span>
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-white">{getTitle()}</h3>
-                <p className="text-white/70 text-xs">Complete los datos del ingreso</p>
-              </div>
-            </div>
-            <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 transition text-white">
-              <X className="w-4 h-4" />
-            </button>
+    <>
+      {/* Modal OCR */}
+      {mostrarOCR && (
+        <div className="fixed inset-0 bg-black/95 z-[60] flex flex-col">
+          <div className="flex justify-between items-center p-4 bg-black/50">
+            <h3 className="text-white font-bold">Escanear matrícula</h3>
+            <button onClick={cerrarCamaraOCR} className="text-white p-2"><X className="w-6 h-6" /></button>
           </div>
-        </div>
-
-        {/* Formulario */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-slate-700/50 rounded-xl p-3 text-center">
-              <p className="text-slate-400 text-xs">Tipo</p>
-              <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full mt-1 text-sm font-semibold ${colors.iconColor}`}>
-                <span>{getIcon()}</span>
-                <span>{formData.tipo}</span>
-              </div>
-            </div>
-            <div className="bg-slate-700/50 rounded-xl p-3">
-              <p className="text-slate-400 text-xs">Hora entrada</p>
-              <div className="flex items-center gap-2 mt-1">
-                <input
-                  type="time"
-                  value={formData.hora_entrada}
-                  onChange={(e) => setFormData({ ...formData, hora_entrada: e.target.value })}
-                  className="flex-1 bg-slate-800 rounded-lg p-1.5 text-white text-sm border border-slate-600 focus:border-amber-500 outline-none"
-                />
-                <button type="button" onClick={setCurrentTime} className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded-lg">
-                  Ahora
-                </button>
+          <div className="flex-1 flex items-center justify-center p-4">
+            <div className="relative w-full max-w-md">
+              <video ref={videoRef} autoPlay playsInline className="w-full rounded-2xl border-2 border-amber-500" />
+              <div className="absolute inset-0 border-2 border-amber-400 rounded-2xl pointer-events-none">
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4/5 h-1/4 border-2 border-amber-400 rounded-lg"></div>
               </div>
             </div>
           </div>
-
-          <div className="bg-slate-700/50 rounded-xl p-3">
-            <p className="text-slate-400 text-xs">Nombre completo</p>
-            <input
-              type="text"
-              required
-              value={formData.nombre}
-              onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-              className="w-full bg-slate-800 rounded-lg p-2 text-white text-sm border border-slate-600 focus:border-amber-500 outline-none mt-1"
-              placeholder="Nombre completo"
-            />
-          </div>
-
-          <div className="bg-slate-700/50 rounded-xl p-3">
-            <p className="text-slate-400 text-xs mb-2">Matrícula</p>
-            <div className="flex gap-1 mb-2">
-              {["ABC 1234", "A 123 BCD", "ABC 123"].map((format, idx) => (
-                <button key={idx} type="button" onClick={() => setMatriculaFormat(`formato${idx + 1}`)} className={`flex-1 text-[10px] py-1 rounded-lg transition ${matriculaFormat === `formato${idx + 1}` ? "bg-amber-500 text-white" : "bg-slate-800 text-slate-400"}`}>
-                  {format}
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                required
-                value={formData.matricula}
-                onChange={handleMatriculaChange}
-                className="flex-1 bg-slate-800 rounded-lg p-2 text-white uppercase text-sm border border-slate-600 focus:border-amber-500 outline-none"
-                placeholder="Ingrese matrícula"
-              />
-              <button type="button" onClick={() => setShowCameraOCR(true)} className="px-3 rounded-lg bg-amber-500/20 text-amber-400">
-                <Camera className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between p-3 bg-slate-700/50 rounded-xl">
-            <label className="text-white text-sm">Sin tarjeta</label>
-            <input type="checkbox" checked={formData.sin_tarjeta} onChange={(e) => setFormData({ ...formData, sin_tarjeta: e.target.checked })} className="w-5 h-5 rounded" />
-          </div>
-
-          {formData.sin_tarjeta && (
-            <div className="space-y-2 p-3 bg-red-500/10 rounded-xl">
-              <select value={formData.motivo} onChange={(e) => setFormData({ ...formData, motivo: e.target.value })} className="w-full bg-slate-800 rounded-lg p-2 text-white text-sm">
-                <option>Olvidó</option>
-                <option>Perdió</option>
-                <option>No funciona</option>
-              </select>
-              <textarea placeholder="Observaciones" rows="1" value={formData.observaciones} onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })} className="w-full bg-slate-800 rounded-lg p-2 text-white text-sm resize-none" />
+          {ocrProcesando && (
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[70]">
+              <div className="text-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"></div><p className="text-white">Procesando...</p></div>
             </div>
           )}
-
-          {error && <div className="bg-red-500/10 rounded-xl p-2 text-red-400 text-xs text-center">{error}</div>}
-
-          <div className="flex gap-3">
-            <button type="button" onClick={onClose} className="flex-1 py-2 rounded-xl border border-slate-600 text-white">Cancelar</button>
-            <button type="submit" disabled={loading} className={`flex-1 py-2 rounded-xl font-semibold text-white bg-gradient-to-r ${colors.buttonBg}`}>
-              {loading ? "Registrando..." : "Registrar"}
-            </button>
+          <div className="p-4 flex gap-3">
+            <button onClick={cerrarCamaraOCR} className="flex-1 py-3 bg-red-600 rounded-xl text-white">Cancelar</button>
+            <button onClick={capturarYLeer} className="flex-1 py-3 bg-amber-500 rounded-xl text-white">Capturar</button>
           </div>
-        </form>
-      </div>
+        </div>
+      )}
 
-      {showCameraOCR && <CameraOCR onDetect={(matricula) => { setFormData({ ...formData, matricula }); setShowCameraOCR(false); }} onClose={() => setShowCameraOCR(false)} />}
-    </div>
+      {/* Modal principal - CORREGIDO con fondo completo */}
+      {open && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    backdropFilter: 'blur(10px)'
+  }}>
+          <div className="bg-slate-800 rounded-2xl max-w-md w-full border border-amber-500/30 shadow-2xl max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className={`rounded-t-2xl bg-gradient-to-r ${colors.bg} p-5 sticky top-0 z-10`}>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
+                    <span className="text-3xl">{getIcon()}</span>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Registrar ingreso</h3>
+                    <p className="text-white/70 text-xs">Complete los datos del vehículo</p>
+                  </div>
+                </div>
+                <button onClick={handleClose} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-5 space-y-4">
+              {/* Hora */}
+              <div className="bg-slate-700/50 rounded-xl p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-amber-400" /><span className="text-slate-400 text-sm">Hora de entrada</span></div>
+                  <div className="flex items-center gap-2">
+                    <input type="time" value={formData.hora_entrada} onChange={(e) => setFormData({ ...formData, hora_entrada: e.target.value })} className="bg-slate-800 rounded-lg p-1.5 text-white text-sm border border-slate-600 focus:border-amber-500 outline-none" />
+                    <button type="button" onClick={setCurrentTime} className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded-lg">Ahora</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tipo */}
+              <div>
+                <label className="block text-sm font-semibold text-white mb-2">Tipo</label>
+                <select value={formData.tipo} onChange={(e) => setFormData({ ...formData, tipo: e.target.value })} className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white">
+                  <option value="Medico">👨‍⚕️ Médico</option>
+                  <option value="Junta">🏛️ Junta Directiva</option>
+                  <option value="Reserva">⭐ Reserva</option>
+                </select>
+              </div>
+
+              {/* Matrícula */}
+              <div>
+                <label className="block text-sm font-semibold text-white mb-2">Matrícula</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    required
+                    value={formData.matricula}
+                    onChange={handleMatriculaChange}
+                    className="flex-1 bg-slate-700 border border-slate-600 rounded-xl p-3 text-white uppercase font-mono tracking-wide"
+                    placeholder="ABC 1234 / A 123 BCD / B 805 419"
+                    autoComplete="off"
+                  />
+                  <button type="button" onClick={abrirCamaraOCR} className="px-4 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition">
+                    <Camera className="w-5 h-5" />
+                  </button>
+                </div>
+                {buscandoDoctor && (
+                  <div className="mt-2 flex items-center gap-2 text-amber-400 text-xs">
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-amber-500"></div>
+                    Buscando médico...
+                  </div>
+                )}
+                {doctorEncontrado && (
+                  <div className="mt-2 p-2 bg-green-500/20 border border-green-500/30 rounded-lg text-green-400 text-xs flex items-center justify-between">
+                    <span>✅ Médico encontrado: {doctorEncontrado.nombre}</span>
+                  </div>
+                )}
+                {mostrarAgregarDoctor && formData.matricula.length >= 5 && !buscandoDoctor && !doctorEncontrado && (
+                  <div className="mt-2 p-2 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">
+                    <p className="text-yellow-400 text-xs mb-2">⚠️ Médico no encontrado para la matrícula {formData.matricula}</p>
+                    <button
+                      type="button"
+                      onClick={() => setMostrarAgregarDoctor(false)}
+                      className="w-full py-1.5 bg-yellow-600/50 hover:bg-yellow-600 rounded-lg text-yellow-300 text-xs flex items-center justify-center gap-1"
+                    >
+                      <UserPlus className="w-3 h-3" /> Agregar nuevo médico
+                    </button>
+                  </div>
+                )}
+                {!mostrarAgregarDoctor && formData.matricula.length >= 5 && !buscandoDoctor && !doctorEncontrado && (
+                  <div className="mt-2 p-2 bg-slate-700/50 rounded-lg">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Nombre del nuevo médico"
+                        value={nuevoDoctor.nombre}
+                        onChange={(e) => setNuevoDoctor({ ...nuevoDoctor, nombre: e.target.value })}
+                        className="flex-1 bg-slate-800 rounded-lg p-1.5 text-white text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={agregarNuevoDoctor}
+                        className="px-3 py-1.5 bg-green-600 rounded-lg text-white text-xs"
+                      >
+                        Guardar
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Nombre */}
+              <div>
+                <label className="block text-sm font-semibold text-white mb-2">Nombre completo</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.nombre}
+                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white"
+                  placeholder="Nombre del médico"
+                />
+              </div>
+
+              {/* Sin tarjeta */}
+              <div className="flex items-center justify-between p-3 bg-slate-700/50 rounded-xl">
+                <label className="text-white text-sm">Sin tarjeta</label>
+                <input type="checkbox" checked={formData.sin_tarjeta} onChange={(e) => setFormData({ ...formData, sin_tarjeta: e.target.checked })} className="w-5 h-5 rounded" />
+              </div>
+
+              {formData.sin_tarjeta && (
+                <div className="space-y-2 p-3 bg-red-500/10 rounded-xl">
+                  <select value={formData.motivo} onChange={(e) => setFormData({ ...formData, motivo: e.target.value })} className="w-full bg-slate-700 rounded-lg p-2 text-white text-sm">
+                    <option>Olvidó</option><option>Perdió</option><option>No funciona</option>
+                  </select>
+                  <textarea placeholder="Observaciones" rows="2" value={formData.observaciones} onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })} className="w-full bg-slate-700 rounded-lg p-2 text-white text-sm resize-none" />
+                </div>
+              )}
+
+              {error && <div className="bg-red-500/10 rounded-xl p-2 text-red-400 text-xs text-center">{error}</div>}
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={handleClose} className="flex-1 py-3 rounded-xl border border-slate-600 text-white">Cancelar</button>
+                <button type="submit" disabled={loading} className={`flex-1 py-3 rounded-xl font-semibold text-white bg-gradient-to-r ${colors.buttonBg}`}>
+                  {loading ? "Registrando..." : "Registrar"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
