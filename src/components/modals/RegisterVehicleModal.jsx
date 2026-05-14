@@ -21,14 +21,11 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [buscandoDoctor, setBuscandoDoctor] = useState(false);
-  const [mostrarOCR, setMostrarOCR] = useState(false);
   const [ocrProcesando, setOcrProcesando] = useState(false);
   const [doctorEncontrado, setDoctorEncontrado] = useState(null);
   const [mostrarAgregarDoctor, setMostrarAgregarDoctor] = useState(false);
   const [nuevoDoctor, setNuevoDoctor] = useState({ nombre: "", especialidad: "" });
   
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
   const ultimaMatriculaBuscada = useRef("");
 
   const normalizarMatricula = (matricula) => {
@@ -140,123 +137,74 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
   };
 
   const handleClose = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-    }
     resetForm();
     onClose();
   };
 
   useEffect(() => {
     if (open) resetForm();
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-    };
   }, [defaultType, open]);
 
-  // ========== OCR CON CÁMARA EN VIVO (CORREGIDO PARA ANDROID) ==========
-  const abrirCamaraOCR = async () => {
-    try {
-      // Detener cualquier stream anterior
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-      
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: "environment",
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      });
-      
-      streamRef.current = stream;
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current.play();
-          setMostrarOCR(true);
-        };
-      }
-    } catch (err) {
-      console.error("Error:", err);
-      toast.error("Error al acceder a la cámara: " + err.message);
-    }
-  };
-
-  const cerrarCamaraOCR = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setMostrarOCR(false);
-  };
-
-  const capturarYLeer = async () => {
-    if (!videoRef.current) return;
+  // ========== OCR CON CÁMARA NATIVA (FUNCIONA EN ANDROID) ==========
+  const abrirCamaraOCR = () => {
+    // Crear input file que abre la cámara nativa
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment'; // Esto abre la cámara directamente en Android
     
-    setOcrProcesando(true);
-    
-    try {
-      const canvas = document.createElement("canvas");
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      const context = canvas.getContext("2d");
-      context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
       
-      // Mejorar calidad de imagen para OCR
-      const imageData = canvas.toDataURL("image/jpeg", 0.9);
+      setOcrProcesando(true);
       
-      const { data: { text } } = await Tesseract.recognize(
-        imageData,
-        'spa',
-        {
-          logger: (m) => {
-            if (m.status === 'recognizing text') {
-              console.log(`Progreso: ${Math.round(m.progress * 100)}%`);
-            }
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          toast.loading("Procesando imagen...", { id: "ocr" });
+          
+          const { data: { text } } = await Tesseract.recognize(
+            event.target.result,
+            'spa',
+            { logger: (m) => console.log(m) }
+          );
+          
+          console.log("Texto OCR:", text);
+          
+          // Limpiar y extraer solo matrícula (primeros 6-8 caracteres alfanuméricos)
+          let cleaned = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
+          
+          // Tomar solo los primeros 8 caracteres (matrícula típica)
+          if (cleaned.length > 8) {
+            cleaned = cleaned.substring(0, 8);
           }
+          
+          const matriculaDetectada = formatearMatriculaEnTiempoReal(cleaned);
+          
+          if (matriculaDetectada && matriculaDetectada.replace(/\s/g, '').length >= 5) {
+            setFormData(prev => ({ ...prev, matricula: matriculaDetectada }));
+            toast.success(`Matrícula detectada: ${matriculaDetectada}`, { id: "ocr" });
+            
+            const doctor = await buscarDoctorPorMatricula(matriculaDetectada);
+            if (doctor) {
+              setFormData(prev => ({ ...prev, nombre: doctor.nombre }));
+              toast.success(`✅ Médico encontrado: ${doctor.nombre}`);
+            }
+          } else {
+            toast.error("No se pudo detectar la matrícula. Intente con mejor luz y centrando la matrícula.", { id: "ocr" });
+          }
+        } catch (err) {
+          console.error("Error OCR:", err);
+          toast.error("Error procesando la imagen", { id: "ocr" });
+        } finally {
+          setOcrProcesando(false);
         }
-      );
-      
-      console.log("Texto OCR:", text);
-      
-      // Limpiar texto: solo letras y números, máximo 8 caracteres
-      let cleaned = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
-      
-      // Tomar solo los primeros 8 caracteres (matrícula típica)
-      if (cleaned.length > 8) {
-        cleaned = cleaned.substring(0, 8);
-      }
-      
-      const matriculaDetectada = formatearMatriculaEnTiempoReal(cleaned);
-      
-      if (matriculaDetectada && matriculaDetectada.replace(/\s/g, '').length >= 5) {
-        setFormData(prev => ({ ...prev, matricula: matriculaDetectada }));
-        toast.success(`Matrícula detectada: ${matriculaDetectada}`);
-        
-        const doctor = await buscarDoctorPorMatricula(matriculaDetectada);
-        if (doctor) {
-          setFormData(prev => ({ ...prev, nombre: doctor.nombre }));
-          toast.success(`✅ Médico encontrado: ${doctor.nombre}`);
-        }
-      } else {
-        toast.error("No se pudo detectar la matrícula. Intente con mejor luz.");
-      }
-      
-      cerrarCamaraOCR();
-    } catch (err) {
-      console.error("Error OCR:", err);
-      toast.error("Error procesando la imagen");
-    } finally {
-      setOcrProcesando(false);
-    }
+      };
+      reader.readAsDataURL(file);
+    };
+    
+    input.click();
   };
 
   const getColors = () => {
@@ -321,51 +269,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
 
   return (
     <>
-      {/* MODAL OCR CON CÁMARA EN VIVO */}
-      {mostrarOCR && (
-        <div className="fixed inset-0 z-[100] bg-black flex flex-col">
-          <div className="flex justify-between items-center p-4 bg-black border-b border-gray-800">
-            <h3 className="text-white font-bold text-lg">Escanear matrícula</h3>
-            <button onClick={cerrarCamaraOCR} className="text-white p-2">
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-          
-          <div className="flex-1 relative bg-black">
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              playsInline 
-              muted
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-64 h-20 border-2 border-amber-400 rounded-lg">
-                <p className="text-amber-400 text-xs text-center mt-2">Centra la matrícula</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-4 flex gap-3 bg-black">
-            <button onClick={cerrarCamaraOCR} className="flex-1 py-3 bg-red-600 rounded-xl text-white font-semibold">
-              Cancelar
-            </button>
-            <button onClick={capturarYLeer} disabled={ocrProcesando} className="flex-1 py-3 bg-amber-500 rounded-xl text-white font-semibold disabled:opacity-50">
-              {ocrProcesando ? "Procesando..." : "Capturar"}
-            </button>
-          </div>
-          
-          {ocrProcesando && (
-            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[110]">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"></div>
-                <p className="text-white">Procesando imagen con OCR...</p>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* MODAL PRINCIPAL */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
@@ -436,11 +339,19 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                   <button 
                     type="button" 
                     onClick={abrirCamaraOCR} 
-                    className="px-4 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition"
+                    disabled={ocrProcesando}
+                    className="px-4 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition disabled:opacity-50"
                   >
                     <Camera className="w-5 h-5" />
                   </button>
                 </div>
+                
+                {ocrProcesando && (
+                  <div className="mt-2 flex items-center gap-2 text-amber-400 text-xs">
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-amber-500"></div>
+                    Procesando imagen...
+                  </div>
+                )}
                 
                 {buscandoDoctor && (
                   <div className="mt-2 flex items-center gap-2 text-amber-400 text-xs">
