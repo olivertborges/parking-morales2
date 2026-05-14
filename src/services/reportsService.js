@@ -59,36 +59,22 @@ export async function getMedicosSinTarjeta() {
   }
 }
 
-export async function getIngresosPorDia(fechaInicio, fechaFin) {
+// src/services/reportsService.js
+// Asegúrate de que pendientes se está contando correctamente
+
+export async function getIngresosPorDia() {
   try {
-    let query = supabase.from("history").select("*");
-    
-    if (fechaInicio && fechaFin) {
-      // Convertir formato DD/MM/YYYY a YYYY-MM-DD si es necesario
-      const inicio = fechaInicio.includes("/") 
-        ? fechaInicio.split("/").reverse().join("-")
-        : fechaInicio;
-      const fin = fechaFin.includes("/")
-        ? fechaFin.split("/").reverse().join("-")
-        : fechaFin;
-      
-      query = query.gte("fecha", inicio).lte("fecha", fin);
-    }
-    
-    const { data, error } = await query;
-    
+    const { data, error } = await supabase
+      .from("history")
+      .select("*")
+      .order("fecha", { ascending: false });
+
     if (error) throw error;
-    
-    if (!data || data.length === 0) {
-      return [];
-    }
-    
+
     const groupedByDate = {};
-    
-    data.forEach(item => {
-      // Normalizar fecha
+    (data || []).forEach(item => {
       let fechaKey = item.fecha;
-      if (fechaKey && fechaKey.includes("/")) {
+      if (fechaKey.includes("/")) {
         const [day, month, year] = fechaKey.split("/");
         fechaKey = `${year}-${month}-${day}`;
       }
@@ -96,31 +82,23 @@ export async function getIngresosPorDia(fechaInicio, fechaFin) {
       if (!groupedByDate[fechaKey]) {
         groupedByDate[fechaKey] = {
           fecha: fechaKey,
-          ingresos: 0,      // Total de VEHÍCULOS que entraron
-          egresos: 0,       // Total de VEHÍCULOS que salieron
-          pendiente: 0      // Vehículos que siguen adentro
+          ingresos: 0,
+          egresos: 0,
+          pendientes: 0
         };
       }
-      
-      // CONTAR 1 por cada entrada (sin importar montos)
       groupedByDate[fechaKey].ingresos++;
       
-      // Si tiene hora de salida, contar como egreso
+      // 👈 IMPORTANTE: Verificar hora_salida correctamente
       if (item.hora_salida && item.hora_salida !== "") {
         groupedByDate[fechaKey].egresos++;
       } else {
-        // Si no tiene hora de salida, está pendiente
-        groupedByDate[fechaKey].pendiente++;
+        groupedByDate[fechaKey].pendientes++;
       }
     });
-    
-    // Calcular pendiente real (ingresos - egresos)
-    Object.values(groupedByDate).forEach(dia => {
-      dia.pendiente = dia.ingresos - dia.egresos;
-    });
-    
-    return Object.values(groupedByDate);
-    
+
+    console.log("📊 Datos agrupados:", groupedByDate); // Debug
+    return Object.values(groupedByDate).slice(0, 30);
   } catch (error) {
     console.error("Error:", error);
     return [];
