@@ -640,21 +640,12 @@ const filteredVehicles = activeVehicles.filter(v =>
                         {filteredVehicles.length === 0 ? (
                           <p className="text-slate-400 text-center py-4">No hay vehículos dentro</p>
                         ) : (
-                          filteredVehicles.map((v) => (
-                            <div
-                              key={v.id}
-                              onClick={() => asignarLugar(v)}
-                              className={`bg-slate-700 p-3 rounded-lg cursor-pointer transition ${
-                                asignando ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-500/20'
-                              }`}
-                            >
-                              <p className="text-white font-medium">{v.nombre}</p>
-                              <p className="text-slate-400 text-sm">{v.matricula}</p>
-                              {v.sin_tarjeta && (
-                                <p className="text-red-400 text-xs mt-1">⚠️ Sin tarjeta</p>
-                              )}
-                            </div>
-                          ))
+                          {getFilteredVehicles().map((v) => (
+  <div key={v.id} onClick={() => asignarLugar(v)} className="bg-slate-700 p-3 rounded-lg cursor-pointer hover:bg-amber-500/20 transition">
+    <p className="text-white font-medium">{v.nombre}</p>
+    <p className="text-slate-400 text-sm">{v.matricula}</p>
+  </div>
+))}
                         )}
                       </div>
                     </>
