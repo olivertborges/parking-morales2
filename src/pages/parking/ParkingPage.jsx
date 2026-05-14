@@ -292,39 +292,61 @@ async function toggleHabilitarLugar(spot) {
     }
   }
 
-// En ParkingPage.jsx, en la función darSalida
+// src/pages/parking/ParkingPage.jsx
+// Busca la función darSalida y asegúrate de que esté así:
+
 async function darSalida(spot) {
   if (!spot || !spot.activo) return;
   
-  const horaSalida = new Date().toLocaleTimeString('es-AR');
+  const horaSalida = new Date().toLocaleTimeString('es-AR', { hour12: false });
   const fechaSalida = new Date().toISOString().split('T')[0];
   
+  console.log("🚗 Dando salida a:", spot.medico_nombre, "Hora:", horaSalida);
+  
   // 1. Liberar lugar en parking_assignments
-  await supabase
+  const { error: parkingError } = await supabase
     .from("parking_assignments")
     .update({ activo: false, medico_nombre: null, medico_matricula: null, vehiculo_id: null })
     .eq("id", spot.id);
   
+  if (parkingError) {
+    console.error("Error liberando lugar:", parkingError);
+    toast.error("Error al liberar lugar");
+    return;
+  }
+  
   // 2. Eliminar de active_vehicles
-  await supabase
+  const { error: deleteError } = await supabase
     .from("active_vehicles")
     .delete()
     .eq("id", spot.vehiculo_id);
   
-  // 3. Actualizar history
-  await supabase
+  if (deleteError) {
+    console.error("Error eliminando de active_vehicles:", deleteError);
+  }
+  
+  // 3. Actualizar history con hora_salida
+  const { error: historyError } = await supabase
     .from("history")
-    .update({ hora_salida: horaSalida, fecha_salida: fechaSalida })
+    .update({ 
+      hora_salida: horaSalida,
+      fecha_salida: fechaSalida
+    })
     .eq("nombre", spot.medico_nombre)
     .eq("matricula", spot.medico_matricula)
     .is("hora_salida", null);
   
+  if (historyError) {
+    console.error("Error actualizando history:", historyError);
+    toast.error("Error al registrar salida en historial");
+    return;
+  }
+  
+  console.log("✅ Salida registrada correctamente");
   toast.success(`✅ ${spot.medico_nombre} salió del estacionamiento`);
   setShowModal(false);
-  
-  // 4. Recargar datos (opcional, la suscripción lo hará automáticamente)
   loadParking();
-  // loadActiveVehicles(); // La suscripción recargará esto automáticamente
+  loadActiveVehicles();
 }
 
   async function iniciarMover(spot) {
