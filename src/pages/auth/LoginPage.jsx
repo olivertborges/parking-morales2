@@ -2,10 +2,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../services/supabase";
-import { LogIn, ParkingCircle } from "lucide-react";
+import { LogIn, User, Lock } from "lucide-react";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
+  const [usuario, setUsuario] = useState("");  // 👈 Cambiado de email a usuario
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -16,33 +16,47 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
 
+    if (!usuario.trim() || !password.trim()) {
+      setError("Usuario y contraseña son obligatorios");
+      setLoading(false);
+      return;
+    }
+
     try {
-      // Primero intentar con Supabase Auth
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
+      // Buscar en la tabla users por el campo "usuario" (username)
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("usuario", usuario)  // 👈 Busca por usuario, no por email
+        .single();
 
-      if (authError) {
-        // Si falla, buscar en tabla users
-        const { data: userData, error: userError } = await supabase
-          .from("users")
-          .select("*")
-          .eq("email", email)
-          .eq("password", password)
-          .single();
-
-        if (userError || !userData) {
-          setError("Usuario o contraseña incorrectos");
-        } else {
-          localStorage.setItem("user", JSON.stringify(userData));
-          navigate("/");
-        }
-      } else {
-        localStorage.setItem("user", JSON.stringify(data.user));
-        navigate("/");
+      if (userError || !userData) {
+        setError("Usuario o contraseña incorrectos");
+        setLoading(false);
+        return;
       }
+
+      // Verificar contraseña
+      if (userData.password !== password) {
+        setError("Usuario o contraseña incorrectos");
+        setLoading(false);
+        return;
+      }
+
+      // Guardar usuario en localStorage
+      localStorage.setItem("user", JSON.stringify({
+        id: userData.id,
+        usuario: userData.usuario,
+        nombre: userData.nombre,
+        email: userData.email,
+        rol: userData.rol
+      }));
+
+      // Redirigir al dashboard
+      navigate("/");
+      
     } catch (err) {
+      console.error("Error en login:", err);
       setError("Error al iniciar sesión");
     } finally {
       setLoading(false);
@@ -67,25 +81,31 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Campo USUARIO */}
           <div>
-            <label className="block text-sm font-semibold text-white mb-2">Email / Usuario</label>
+            <label className="block text-sm font-semibold text-white mb-2 flex items-center gap-1">
+              <User className="w-3 h-3" /> Usuario
+            </label>
             <input
               type="text"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white outline-none focus:border-amber-500"
-              placeholder="admin@hospital.com"
+              value={usuario}
+              onChange={(e) => setUsuario(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white outline-none focus:border-amber-500 transition"
+              placeholder="Ingrese su usuario"
               required
             />
           </div>
 
+          {/* Campo CONTRASEÑA */}
           <div>
-            <label className="block text-sm font-semibold text-white mb-2">Contraseña</label>
+            <label className="block text-sm font-semibold text-white mb-2 flex items-center gap-1">
+              <Lock className="w-3 h-3" /> Contraseña
+            </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white outline-none focus:border-amber-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white outline-none focus:border-amber-500 transition"
               placeholder="••••••"
               required
             />
@@ -108,11 +128,7 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-6 pt-4 border-t border-slate-800 text-center">
-          <p className="text-xs text-slate-500 flex items-center justify-center gap-1">
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" />
-              <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" />
-            </svg>
+          <p className="text-xs text-slate-500">
             Sistema conectado a Supabase Cloud
           </p>
         </div>
