@@ -38,7 +38,7 @@ export default function SplashScreen({ onFinish }) {
           {/* Contenedor del logo - fondo semi-transparente */}
           <div className="relative bg-slate-800/50 backdrop-blur-sm rounded-3xl p-5 shadow-2xl border border-amber-500/20">
             <img 
-              src="/logo.png" 
+              src="/splash.png" 
               alt="Parking Morales" 
               className="w-32 h-32 rounded-2xl object-cover"
             />
