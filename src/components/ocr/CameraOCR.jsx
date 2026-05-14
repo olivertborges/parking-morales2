@@ -1,184 +1,205 @@
-// src/components/CameraOCR.jsx
-import { useState, useRef } from "react";
-import { Camera, X, Scan, AlertCircle } from "lucide-react";
+// src/components/CameraOCRSimple.jsx
+import { useState, useRef, useEffect } from "react";
+import { X, Camera } from "lucide-react";
 import Tesseract from "tesseract.js";
 
-export default function CameraOCR({ onDetect, onClose }) {
-  const [scanning, setScanning] = useState(false);
+export default function CameraOCRSimple({ onDetect, onClose }) {
+  const [error, setError] = useState("");
   const [processing, setProcessing] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
+  const [cameraReady, setCameraReady] = useState(false);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
-  const startCamera = async () => {
+  useEffect(() => {
+    iniciarCamara();
+    return () => {
+      detenerCamara();
+    };
+  }, []);
+
+  const iniciarCamara = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "environment" } // Usar cámara trasera en móvil
+      setError("");
+      console.log("Solicitando acceso a la cámara...");
+      
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }
       });
+      
+      console.log("Cámara obtenida:", stream);
       streamRef.current = stream;
+      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        videoRef.current.onloadedmetadata = () => {
+          console.log("Video cargado, dimensiones:", videoRef.current.videoWidth, videoRef.current.videoHeight);
+          videoRef.current.play();
+          setCameraReady(true);
+        };
       }
-      setScanning(true);
-      setError(null);
     } catch (err) {
-      setError("Error accediendo a la cámara: " + err.message);
+      console.error("Error al iniciar cámara:", err);
+      setError(`No se pudo acceder a la cámara: ${err.message}`);
     }
   };
 
-  const stopCamera = () => {
+  const detenerCamara = () => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach(track => {
+        track.stop();
+        console.log("Track detenido:", track.kind);
+      });
       streamRef.current = null;
     }
-    setScanning(false);
-    setResult(null);
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
   };
 
-  const captureAndOCR = async () => {
-    if (!videoRef.current) return;
-    
+  const capturarImagen = async () => {
+    if (!videoRef.current || !cameraReady) {
+      setError("La cámara no está lista");
+      return;
+    }
+
     setProcessing(true);
     
-    // Crear canvas para capturar imagen
-    const canvas = document.createElement("canvas");
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    const context = canvas.getContext("2d");
-    context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-    
-    // Procesar con Tesseract
-    const imageData = canvas.toDataURL("image/jpeg");
-    
     try {
+      const canvas = document.createElement("canvas");
+      const video = videoRef.current;
+      
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      const context = canvas.getContext("2d");
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      // Opcional: Mostrar preview para debug
+      const imageDataUrl = canvas.toDataURL("image/jpeg", 0.9);
+      
+      console.log("Imagen capturada, dimensiones:", canvas.width, canvas.height);
+      
       const { data: { text } } = await Tesseract.recognize(
-        imageData,
-        'spa', // Idioma español
+        imageDataUrl,
+        'spa',
         {
-          logger: (m) => console.log(m)
+          logger: (m) => {
+            if (m.status === 'recognizing text') {
+              console.log(`OCR: ${Math.round(m.progress * 100)}%`);
+            }
+          }
         }
       );
       
-      // Limpiar y extraer matrícula (formato: ABC 1234, A 123 BCD, etc)
-      const cleaned = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
-      let matricula = "";
+      console.log("Texto OCR:", text);
       
-      // Intentar detectar formato
-      if (cleaned.length >= 6 && cleaned.length <= 8) {
-        if (cleaned.length === 7) {
+      // Limpiar texto para obtener matrícula
+      const cleaned = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      let matricula = cleaned;
+      
+      // Formatear según longitud
+      if (cleaned.length === 6) {
+        matricula = `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)}`;
+      } else if (cleaned.length === 7) {
+        if (/^[A-Z]{3}\d{4}$/.test(cleaned)) {
           matricula = `${cleaned.slice(0, 3)} ${cleaned.slice(3, 7)}`;
-        } else if (cleaned.length === 6) {
-          matricula = `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)}`;
-        } else if (cleaned.length === 8) {
-          matricula = `${cleaned.slice(0, 4)} ${cleaned.slice(4, 8)}`;
+        } else if (/^[A-Z]\d{3}\d{3}$/.test(cleaned)) {
+          matricula = `${cleaned.slice(0, 1)} ${cleaned.slice(1, 4)} ${cleaned.slice(4, 7)}`;
         }
+      } else if (cleaned.length === 8) {
+        matricula = `${cleaned.slice(0, 4)} ${cleaned.slice(4, 8)}`;
       }
       
-      setResult({ text: matricula || cleaned, raw: text });
-      stopCamera();
+      if (matricula && matricula.replace(/\s/g, '').length >= 5) {
+        onDetect(matricula);
+      } else {
+        setError(`No se pudo detectar la matrícula. Texto detectado: "${text.substring(0, 50)}"`);
+        setTimeout(() => setError(""), 3000);
+      }
+      
+      detenerCamara();
+      onClose();
     } catch (err) {
-      setError("Error procesando la imagen: " + err.message);
+      console.error("Error en OCR:", err);
+      setError(`Error procesando: ${err.message}`);
+    } finally {
+      setProcessing(false);
     }
-    
-    setProcessing(false);
-  };
-
-  const confirmMatricula = () => {
-    if (result && onDetect) {
-      onDetect(result.text);
-    }
-    onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-black/95 z-50 flex flex-col">
+    <div className="fixed inset-0 z-[200] flex flex-col bg-black">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 bg-black/50">
-        <h3 className="text-white font-bold flex items-center gap-2">
-          <Scan className="w-5 h-5 text-amber-400" />
-          Escanear matrícula
-        </h3>
+      <div className="flex justify-between items-center p-4 bg-black/80">
+        <h3 className="text-white font-bold text-lg">Escanear matrícula</h3>
         <button onClick={onClose} className="text-white p-2">
           <X className="w-6 h-6" />
         </button>
       </div>
 
-      {/* Contenido */}
-      <div className="flex-1 flex items-center justify-center p-4">
-        {!scanning ? (
-          <div className="text-center space-y-4">
-            <div className="w-32 h-32 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto">
-              <Camera className="w-12 h-12 text-amber-400" />
-            </div>
-            <p className="text-white">Enfoca la matrícula del vehículo</p>
-            <button
-              onClick={startCamera}
-              className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-600 rounded-xl text-white font-semibold"
-            >
-              Abrir cámara
-            </button>
-          </div>
-        ) : (
-          <div className="relative w-full max-w-md">
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              playsInline 
-              className="w-full rounded-2xl border-2 border-amber-500"
-            />
-            <div className="absolute inset-0 border-2 border-amber-400 rounded-2xl pointer-events-none">
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4/5 h-1/3 border-2 border-amber-400 rounded-lg"></div>
-            </div>
-          </div>
-        )}
-
-        {processing && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"></div>
-              <p className="text-white">Procesando imagen...</p>
-            </div>
-          </div>
-        )}
-
-        {result && (
-          <div className="fixed bottom-0 left-0 right-0 bg-slate-800 p-6 rounded-t-2xl">
-            <p className="text-white text-center mb-2">Matrícula detectada:</p>
-            <p className="text-3xl font-bold text-amber-400 text-center mb-4">{result.text}</p>
-            <div className="flex gap-3">
-              <button onClick={onClose} className="flex-1 py-2 border border-slate-600 rounded-xl text-white">
-                Cancelar
-              </button>
-              <button onClick={confirmMatricula} className="flex-1 bg-amber-500 py-2 rounded-xl text-white font-semibold">
-                Usar esta matrícula
-              </button>
-            </div>
-          </div>
-        )}
-
-        {error && (
-          <div className="fixed bottom-0 left-0 right-0 bg-red-900 p-4">
-            <p className="text-white text-center flex items-center justify-center gap-2">
-              <AlertCircle className="w-4 h-4" />
-              {error}
+      {/* Video */}
+      <div className="flex-1 relative bg-black">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="w-full h-full object-cover"
+        />
+        
+        {/* Guía */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="w-4/5 h-1/4 border-2 border-amber-400 rounded-lg">
+            <p className="text-amber-400 text-xs text-center mt-2 bg-black/60 px-2 py-1 rounded inline-block mx-auto block w-fit">
+              Centra la matrícula
             </p>
+          </div>
+        </div>
+
+        {/* Loading */}
+        {!cameraReady && !error && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-amber-500 mx-auto mb-3"></div>
+              <p className="text-white text-sm">Iniciando cámara...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="absolute bottom-20 left-4 right-4 bg-red-900/90 p-3 rounded-lg">
+            <p className="text-white text-center text-sm">{error}</p>
+          </div>
+        )}
+
+        {/* Procesando */}
+        {processing && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-amber-500 mx-auto mb-3"></div>
+              <p className="text-white text-sm">Procesando imagen...</p>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Botones de control de cámara */}
-      {scanning && !result && (
-        <div className="p-4 flex gap-3">
-          <button onClick={stopCamera} className="flex-1 py-3 bg-red-600 rounded-xl text-white font-semibold">
-            Cancelar
-          </button>
-          <button onClick={captureAndOCR} className="flex-1 py-3 bg-amber-500 rounded-xl text-white font-semibold">
-            Capturar
-          </button>
-        </div>
-      )}
+      {/* Botones */}
+      <div className="p-4 flex gap-3 bg-black/80">
+        <button
+          onClick={onClose}
+          className="flex-1 py-3 bg-red-600 rounded-xl text-white font-semibold"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={capturarImagen}
+          disabled={!cameraReady || processing}
+          className="flex-1 py-3 bg-amber-500 rounded-xl text-white font-semibold disabled:opacity-50"
+        >
+          {processing ? "Procesando..." : "Capturar"}
+        </button>
+      </div>
     </div>
   );
 }
