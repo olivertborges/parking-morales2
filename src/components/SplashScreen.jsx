@@ -24,7 +24,7 @@ export default function SplashScreen({ onFinish }) {
           {/* Contenedor del logo */}
           <div className="relative bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl p-4 shadow-2xl">
             <img 
-              src="/logo.png" 
+              src="/splash.png" 
               alt="Logo" 
               className="w-28 h-28 rounded-2xl object-cover"
             />
