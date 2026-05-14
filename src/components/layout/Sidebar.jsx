@@ -15,8 +15,8 @@ import {
   Database,
   ChevronDown,
   Calendar,
-  Download,      // 👈 Para Backup
-  Upload         // 👈 Para Restaurar
+  Download,
+  Upload
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -33,8 +33,8 @@ const menuItems = [
 
 const adminItems = [
   { path: "/users", icon: Users, label: "Usuarios" },
-  { path: "/backup", icon: Download, label: "Backup" },      // 👈 Agregado
-  { path: "/restore", icon: Upload, label: "Restaurar" },    // 👈 Agregado
+  { path: "/backup", icon: Download, label: "Backup" },
+  { path: "/restore", icon: Upload, label: "Restaurar" },
   { path: "/tv", icon: Tv, label: "Modo TV" },
   { path: "/logs", icon: Database, label: "Logs" },
 ];
@@ -44,7 +44,7 @@ export default function Sidebar({ onClose }) {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [systemOpen, setSystemOpen] = useState(true); // Cambiado a true para que se vea el menú Sistema
+  const [systemOpen, setSystemOpen] = useState(true);
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -65,14 +65,12 @@ export default function Sidebar({ onClose }) {
 
   return (
     <aside className="w-64 h-full bg-slate-900 border-r border-slate-800 flex flex-col overflow-y-auto">
-      {/* Logo */}
       <div className="p-5 border-b border-slate-800 flex justify-center">
         <div className="logo-universal">
           <img src="/logo.png" alt="Logo" className="h-10 w-auto" />
         </div>
       </div>
 
-      {/* Info usuario */}
       <div className="px-5 pt-4 pb-3 border-b border-slate-800">
         <p className="text-xs font-semibold text-amber-500 mb-3">Capacidad total: 37 plazas</p>
         <div className="space-y-1">
@@ -82,10 +80,8 @@ export default function Sidebar({ onClose }) {
         </div>
       </div>
 
-      {/* Menú */}
       <nav className="flex-1 p-4 space-y-1">
         {menuItems.map(item => {
-          // Si el item es solo para admin y el usuario no es admin, lo omitimos
           if (item.adminOnly && !isAdmin) return null;
           
           const Icon = item.icon;
@@ -145,7 +141,6 @@ export default function Sidebar({ onClose }) {
         )}
       </nav>
 
-      {/* Cerrar sesión */}
       <div className="p-4 border-t border-slate-800">
         <button
           onClick={handleLogout}
