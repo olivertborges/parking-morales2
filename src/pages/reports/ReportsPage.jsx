@@ -152,6 +152,21 @@ export default function ReportsPage() {
     setModoFiltro("rango");
   };
 
+// src/pages/reports/ReportsPage.jsx
+
+// Dentro del componente, después de las funciones existentes
+const fechas = async () => {
+  const totales = await getTotalesRango("07/05/2026", "14/05/2026");
+  console.log("Total vehículos que entraron:", totales.ingresos);
+  console.log("Total vehículos que salieron:", totales.egresos);
+  console.log("Vehículos dentro:", totales.pendientes);
+};
+
+// Puedes llamar a la función cuando quieras, por ejemplo en un useEffect
+useEffect(() => {
+  fechas();
+}, []);
+
   return (
     <div>
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
