@@ -439,13 +439,21 @@ function actualizarStats(spotsData) {
   if (porcentajeEl) porcentajeEl.innerText = `${porcentaje}%`;
   if (bloqueadosEl) bloqueadosEl.innerText = bloqueados;
   
-  console.log(`📊 Visibles: ${totalVisibles} | Ocupados: ${ocupados} | Libres: ${libres} | Bloqueados: ${bloqueados} | %: ${porcentaje}`);
-}
-
+  // En ParkingPage.jsx, antes del return, agrega esta línea si no existe:
+const filteredVehicles = activeVehicles.filter(v =>
+  v.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  v.matricula?.toLowerCase().includes(searchTerm.toLowerCase())
+);
 
 
   function scrollToCol(colId) { document.getElementById(colId)?.scrollIntoView({ behavior: "smooth" }); }
   function scrollToBottom() { window.scrollTo({ behavior: "smooth", top: document.body.scrollHeight }); }
+
+// En ParkingPage.jsx, antes del return, agrega esta línea si no existe:
+const filteredVehicles = activeVehicles.filter(v =>
+  v.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  v.matricula?.toLowerCase().includes(searchTerm.toLowerCase())
+);
 
   return (
     <div id="parkingVirtualSection" className="page-section">
