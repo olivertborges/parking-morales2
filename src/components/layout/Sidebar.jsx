@@ -1,8 +1,5 @@
 // src/components/layout/Sidebar.jsx
 import { Link, useLocation, useNavigate } from "react-router-dom";
-// src/components/layout/Sidebar.jsx
-// Agrega Calendar a los imports de lucide-react
-
 import { 
   LayoutDashboard, 
   Car, 
@@ -17,7 +14,9 @@ import {
   Tv,
   Database,
   ChevronDown,
-  Calendar  // 👈 AGREGAR ESTO
+  Calendar,
+  Download,      // 👈 Para Backup
+  Upload         // 👈 Para Restaurar
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -34,6 +33,8 @@ const menuItems = [
 
 const adminItems = [
   { path: "/users", icon: Users, label: "Usuarios" },
+  { path: "/backup", icon: Download, label: "Backup" },      // 👈 Agregado
+  { path: "/restore", icon: Upload, label: "Restaurar" },    // 👈 Agregado
   { path: "/tv", icon: Tv, label: "Modo TV" },
   { path: "/logs", icon: Database, label: "Logs" },
 ];
@@ -43,7 +44,7 @@ export default function Sidebar({ onClose }) {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [systemOpen, setSystemOpen] = useState(false);
+  const [systemOpen, setSystemOpen] = useState(true); // Cambiado a true para que se vea el menú Sistema
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -84,6 +85,9 @@ export default function Sidebar({ onClose }) {
       {/* Menú */}
       <nav className="flex-1 p-4 space-y-1">
         {menuItems.map(item => {
+          // Si el item es solo para admin y el usuario no es admin, lo omitimos
+          if (item.adminOnly && !isAdmin) return null;
+          
           const Icon = item.icon;
           const isActive = location.pathname === item.path;
           return (
@@ -109,7 +113,10 @@ export default function Sidebar({ onClose }) {
               onClick={() => setSystemOpen(!systemOpen)}
               className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 transition"
             >
-              <div className="flex items-center gap-3"><Settings className="w-5 h-5" /><span className="text-sm">Sistema</span></div>
+              <div className="flex items-center gap-3">
+                <Settings className="w-5 h-5" />
+                <span className="text-sm">Sistema</span>
+              </div>
               <ChevronDown className={`w-4 h-4 transition-transform ${systemOpen ? 'rotate-180' : ''}`} />
             </button>
 
