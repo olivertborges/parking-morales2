@@ -59,60 +59,132 @@ export async function getMedicosSinTarjeta() {
   }
 }
 
-export async function getTotalesPorRango(fechaInicio, fechaFin) {
+export async function getIngresosPorDia(fechaInicio, fechaFin) {
   try {
-    const { data, error } = await supabase
-      .from("history")
-      .select("fecha, monto, tipo, hora_salida")
-      .gte("fecha", fechaInicio)
-      .lte("fecha", fechaFin);
-
-    if (error) throw error;
-
-    if (!data || data.length === 0) {
-      return {
-        ingresos: 0,
-        egresos: 0,
-        pendientes: 0,
-        saldo: 0
-      };
-    }
-
-    let ingresos = 0;
-    let egresos = 0;
-    let pendientes = 0;
-
-    data.forEach(item => {
-      const monto = parseFloat(item.monto) || 0;
+    // Primero, obtener los datos
+    let query = supabase.from("history").select("*");
+    
+    if (fechaInicio && fechaFin) {
+      // Convertir formato DD/MM/YYYY a YYYY-MM-DD si es necesario
+      const inicio = fechaInicio.includes("/") 
+        ? fechaInicio.split("/").reverse().join("-")
+        : fechaInicio;
+      const fin = fechaFin.includes("/")
+        ? fechaFin.split("/").reverse().join("-")
+        : fechaFin;
       
-      if (item.tipo === "ingreso" || item.tipo === "pago") {
-        ingresos += monto;
-      } else if (item.tipo === "egreso" || item.tipo === "gasto") {
-        egresos += monto;
+      query = query.gte("fecha", inicio).lte("fecha", fin);
+    }
+    
+    const { data, error } = await query;
+    
+    if (error) throw error;
+    
+    if (!data || data.length === 0) {
+      console.log("No hay datos, devolviendo estructura vacía");
+      return [];
+    }
+    
+    // Mostrar el primer registro para depuración
+    console.log("Primer registro:", data[0]);
+    console.log("Campos disponibles:", Object.keys(data[0]));
+    
+    // Identificar campos disponibles
+    const primerItem = data[0];
+    const campoFecha = primerItem.fecha ? "fecha" : 
+                       primerItem.fecha_registro ? "fecha_registro" :
+                       primerItem.dia ? "dia" : null;
+    
+    const campoMonto = primerItem.monto ? "monto" :
+                       primerItem.pagado ? "pagado" :
+                       primerItem.tarifa ? "tarifa" :
+                       primerItem.precio ? "precio" :
+                       primerItem.total ? "total" : null;
+    
+    const campoTipo = primerItem.tipo ? "tipo" :
+                      primerItem.operacion ? "operacion" : null;
+    
+    console.log("Campos detectados - Fecha:", campoFecha, "Monto:", campoMonto, "Tipo:", campoTipo);
+    
+    const groupedByDate = {};
+    
+    data.forEach(item => {
+      // Obtener fecha
+      let fechaKey = campoFecha ? item[campoFecha] : item.fecha || item.fecha_registro;
+      if (fechaKey && typeof fechaKey === "string" && fechaKey.includes("/")) {
+        const [day, month, year] = fechaKey.split("/");
+        fechaKey = `${year}-${month}-${day}`;
+      } else if (fechaKey instanceof Date) {
+        fechaKey = fechaKey.toISOString().split("T")[0];
       }
-
-      // Pendientes = vehículos activos (sin hora_salida)
-      if (!item.hora_salida || item.hora_salida === "") {
-        pendientes++;
+      
+      if (!fechaKey) return;
+      
+      if (!groupedByDate[fechaKey]) {
+        groupedByDate[fechaKey] = {
+          fecha: fechaKey,
+          ingresos: 0,
+          egresos: 0,
+          pendiente: 0
+        };
+      }
+      
+      // Obtener monto (si existe campo de monto)
+      let monto = 0;
+      if (campoMonto) {
+        monto = parseFloat(item[campoMonto]) || 0;
+      } else {
+        // Si no hay campo de monto, contar como 1
+        monto = 1;
+      }
+      
+      // Determinar si es ingreso o egreso
+      const tipo = campoTipo ? item[campoTipo]?.toLowerCase() : "";
+      
+      if (tipo === "egreso" || tipo === "gasto" || tipo === "salida") {
+        groupedByDate[fechaKey].egresos += monto;
+      } else {
+        // Por defecto, es ingreso
+        groupedByDate[fechaKey].ingresos += monto;
+      }
+      
+      // Calcular pendientes (vehículos activos sin salida)
+      if (item.hora_salida === null || item.hora_salida === undefined || item.hora_salida === "") {
+        groupedByDate[fechaKey].pendiente++;
       }
     });
-
-    return {
-      ingresos: ingresos,
-      egresos: egresos,
-      pendientes: pendientes,
-      saldo: ingresos - egresos
-    };
-
+    
+    const resultados = Object.values(groupedByDate);
+    console.log("Resultados agrupados:", resultados);
+    
+    return resultados;
+    
   } catch (error) {
-    console.error("Error:", error);
-    return {
-      ingresos: 0,
-      egresos: 0,
-      pendientes: 0,
-      saldo: 0
-    };
+    console.error("Error en getIngresosPorDia:", error);
+    return [];
   }
+}
+
+// Función para obtener totales
+export async function getTotalesRango(fechaInicio, fechaFin) {
+  const datos = await getIngresosPorDia(fechaInicio, fechaFin);
+  
+  let totalIngresos = 0;
+  let totalEgresos = 0;
+  let totalPendientes = 0;
+  
+  datos.forEach(dia => {
+    totalIngresos += dia.ingresos || 0;
+    totalEgresos += dia.egresos || 0;
+    totalPendientes += dia.pendiente || 0;
+  });
+  
+  return {
+    ingresos: totalIngresos,
+    egresos: totalEgresos,
+    pendientes: totalPendientes,
+    saldo: totalIngresos - totalEgresos
+  };
 }
 
 // Exportar médicos sin tarjeta
