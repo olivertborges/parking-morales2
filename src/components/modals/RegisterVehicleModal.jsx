@@ -150,28 +150,79 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
 
   // ========== OCR ==========
   const abrirCamaraOCR = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "environment" } 
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
+  console.log("Intentando abrir cámara...");
+  
+  // Verificar si el navegador soporta getUserMedia
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    toast.error("Tu navegador no soporta la cámara");
+    return;
+  }
+  
+  try {
+    // Primero pedir permisos explícitamente
+    const permissionStatus = await navigator.permissions.query({ name: 'camera' });
+    console.log("Estado del permiso:", permissionStatus.state);
+    
+    if (permissionStatus.state === 'denied') {
+      toast.error("Permiso de cámara denegado. Habilítalo en la configuración del navegador");
+      return;
+    }
+    
+    // Solicitar cámara con opciones específicas
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: "environment",
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
       }
-      setMostrarOCR(true);
-    } catch (err) {
+    });
+    
+    console.log("Cámara obtenida:", stream.getVideoTracks()[0].getSettings());
+    
+    streamRef.current = stream;
+    
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.onloadedmetadata = () => {
+        console.log("Video cargado correctamente");
+        videoRef.current.play().catch(e => console.error("Error al reproducir:", e));
+        setMostrarOCR(true);
+      };
+      videoRef.current.onerror = (e) => {
+        console.error("Error en video:", e);
+        toast.error("Error al cargar el video");
+      };
+    }
+  } catch (err) {
+    console.error("Error detallado:", err);
+    
+    // Mensaje de error más específico
+    if (err.name === 'NotAllowedError') {
+      toast.error("Permiso denegado. Habilita la cámara en la configuración del navegador");
+    } else if (err.name === 'NotFoundError') {
+      toast.error("No se encontró ninguna cámara en tu dispositivo");
+    } else if (err.name === 'NotReadableError') {
+      toast.error("La cámara está siendo usada por otra aplicación");
+    } else {
       toast.error("Error al acceder a la cámara: " + err.message);
     }
-  };
+  }
+};
 
   const cerrarCamaraOCR = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    setMostrarOCR(false);
-  };
+  console.log("Cerrando cámara...");
+  if (streamRef.current) {
+    streamRef.current.getTracks().forEach(track => {
+      track.stop();
+      console.log("Track detenido");
+    });
+    streamRef.current = null;
+  }
+  if (videoRef.current) {
+    videoRef.current.srcObject = null;
+  }
+  setMostrarOCR(false);
+};
 
   const capturarYLeer = async () => {
     if (!videoRef.current) return;
@@ -277,48 +328,50 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
   return (
     <>
       {/* MODAL OCR - VERSIÓN SIMPLE QUE SÍ FUNCIONA */}
-      {mostrarOCR && (
-        <div className="fixed inset-0 z-[100] bg-black flex flex-col">
-          <div className="flex justify-between items-center p-4 bg-black border-b border-gray-800">
-            <h3 className="text-white font-bold text-lg">Escanear matrícula</h3>
-            <button onClick={cerrarCamaraOCR} className="text-white p-2">
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-          
-          <div className="flex-1 relative bg-black">
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              playsInline 
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-64 h-20 border-2 border-amber-400 rounded-lg">
-                <p className="text-amber-400 text-xs text-center mt-2">Centra la matrícula</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-4 flex gap-3 bg-black">
-            <button onClick={cerrarCamaraOCR} className="flex-1 py-3 bg-red-600 rounded-xl text-white font-semibold">
-              Cancelar
-            </button>
-            <button onClick={capturarYLeer} disabled={ocrProcesando} className="flex-1 py-3 bg-amber-500 rounded-xl text-white font-semibold disabled:opacity-50">
-              {ocrProcesando ? "Procesando..." : "Capturar"}
-            </button>
-          </div>
-          
-          {ocrProcesando && (
-            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[110]">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"></div>
-                <p className="text-white">Procesando imagen...</p>
-              </div>
-            </div>
-          )}
+      {/* MODAL OCR */}
+{mostrarOCR && (
+  <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+    <div className="flex justify-between items-center p-4 bg-black border-b border-gray-800">
+      <h3 className="text-white font-bold text-lg">Escanear matrícula</h3>
+      <button onClick={cerrarCamaraOCR} className="text-white p-2">
+        <X className="w-6 h-6" />
+      </button>
+    </div>
+    
+    <div className="flex-1 relative bg-black">
+      <video 
+        ref={videoRef} 
+        autoPlay 
+        playsInline 
+        muted
+        className="w-full h-full object-cover"
+      />
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="w-64 h-20 border-2 border-amber-400 rounded-lg">
+          <p className="text-amber-400 text-xs text-center mt-2">Centra la matrícula</p>
         </div>
-      )}
+      </div>
+    </div>
+    
+    <div className="p-4 flex gap-3 bg-black">
+      <button onClick={cerrarCamaraOCR} className="flex-1 py-3 bg-red-600 rounded-xl text-white font-semibold">
+        Cancelar
+      </button>
+      <button onClick={capturarYLeer} disabled={ocrProcesando} className="flex-1 py-3 bg-amber-500 rounded-xl text-white font-semibold disabled:opacity-50">
+        {ocrProcesando ? "Procesando..." : "Capturar"}
+      </button>
+    </div>
+    
+    {ocrProcesando && (
+      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[110]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"></div>
+          <p className="text-white">Procesando imagen...</p>
+        </div>
+      </div>
+    )}
+  </div>
+)}
 
       {/* MODAL PRINCIPAL */}
       {open && (
