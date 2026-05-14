@@ -21,7 +21,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
   const [error, setError] = useState("");
   const [buscandoDoctor, setBuscandoDoctor] = useState(false);
   const [doctorEncontrado, setDoctorEncontrado] = useState(null);
-  const [mostrarAgregarDoctor, setMostrarAgregarDoctor] = useState(false);
+  const [mostrarFormularioNuevo, setMostrarFormularioNuevo] = useState(false);
   const [nuevoDoctor, setNuevoDoctor] = useState({ 
     nombre: "", 
     modelo: "", 
@@ -29,6 +29,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
   });
   
   const ultimaMatriculaBuscada = useRef("");
+  const timeoutRef = useRef(null);
 
   const normalizarMatricula = (matricula) => {
     if (!matricula) return "";
@@ -65,7 +66,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     const formateado = formatearMatriculaEnTiempoReal(e.target.value);
     setFormData({ ...formData, matricula: formateado });
     setDoctorEncontrado(null);
-    setMostrarAgregarDoctor(false);
+    setMostrarFormularioNuevo(false);
   };
 
   const buscarDoctorPorMatricula = async (matricula) => {
@@ -87,34 +88,52 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     return doctor || null;
   };
 
+  // Efecto para buscar médico con debounce y prevención de recargas
   useEffect(() => {
-    const buscar = async () => {
-      const matriculaLimpia = normalizarMatricula(formData.matricula);
-      if (matriculaLimpia.length < 4) {
-        setDoctorEncontrado(null);
-        setMostrarAgregarDoctor(false);
-        return;
-      }
-      if (ultimaMatriculaBuscada.current === matriculaLimpia) return;
+    // Limpiar timeout anterior
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
+    const matriculaLimpia = normalizarMatricula(formData.matricula);
+    
+    // Si la matrícula es muy corta, no hacer nada
+    if (matriculaLimpia.length < 4) {
+      setDoctorEncontrado(null);
+      setMostrarFormularioNuevo(false);
+      setBuscandoDoctor(false);
+      return;
+    }
+    
+    // Si ya buscamos esta misma matrícula, no volver a buscar
+    if (ultimaMatriculaBuscada.current === matriculaLimpia) {
+      return;
+    }
+    
+    // Debounce: esperar 800ms después de que el usuario deje de escribir
+    timeoutRef.current = setTimeout(async () => {
+      setBuscandoDoctor(true);
       ultimaMatriculaBuscada.current = matriculaLimpia;
       
-      setBuscandoDoctor(true);
       const doctor = await buscarDoctorPorMatricula(formData.matricula);
       
-      if (doctor) {
+      if (doctor && !doctorEncontrado) {
         setDoctorEncontrado(doctor);
         setFormData(prev => ({ ...prev, nombre: doctor.nombre }));
         toast.success(`✅ Médico encontrado: ${doctor.nombre}`);
-        setMostrarAgregarDoctor(false);
-      } else {
+        setMostrarFormularioNuevo(false);
+      } else if (!doctor) {
         setDoctorEncontrado(null);
-        setMostrarAgregarDoctor(true);
+        // No mostrar el formulario automáticamente, solo si el usuario quiere agregar
       }
       setBuscandoDoctor(false);
-    };
+    }, 800);
     
-    const timeout = setTimeout(buscar, 800);
-    return () => clearTimeout(timeout);
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
   }, [formData.matricula]);
 
   const agregarNuevoDoctor = async () => {
@@ -134,7 +153,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     
     if (!error) {
       toast.success(`✅ Médico ${nuevoDoctor.nombre} agregado correctamente`);
-      setMostrarAgregarDoctor(false);
+      setMostrarFormularioNuevo(false);
       setDoctorEncontrado({ 
         nombre: nuevoDoctor.nombre, 
         matricula: matriculaNormalizada 
@@ -158,10 +177,13 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
       observaciones: ""
     });
     setDoctorEncontrado(null);
-    setMostrarAgregarDoctor(false);
+    setMostrarFormularioNuevo(false);
     setNuevoDoctor({ nombre: "", modelo: "", color: "" });
     setError("");
     ultimaMatriculaBuscada.current = "";
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
   };
 
   const handleClose = () => {
@@ -171,6 +193,11 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
 
   useEffect(() => {
     if (open) resetForm();
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
   }, [defaultType, open]);
 
   const getColors = () => {
@@ -312,9 +339,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                   <span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-1 rounded">Ej: A 123 BCD</span>
                   <span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-1 rounded">Ej: AB 123 CD</span>
                 </div>
-                <p className="text-slate-500 text-xs mt-2">
-                  {formData.matricula.replace(/\s/g, '').length}/7 caracteres
-                </p>
               </div>
 
               {/* Buscando médico */}
@@ -333,24 +357,24 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 </div>
               )}
               
-              {/* Botón para agregar médico cuando no se encuentra */}
-              {mostrarAgregarDoctor && formData.matricula.length >= 5 && !buscandoDoctor && !doctorEncontrado && (
+              {/* Botón para agregar médico (solo si no se encontró y la matrícula es válida) */}
+              {!doctorEncontrado && !buscandoDoctor && formData.matricula.replace(/\s/g, '').length >= 4 && (
                 <div className="p-3 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">
                   <p className="text-yellow-400 text-xs mb-2">⚠️ Médico no encontrado para la matrícula {formData.matricula}</p>
                   <button 
                     type="button" 
-                    onClick={() => setMostrarAgregarDoctor(false)} 
+                    onClick={() => setMostrarFormularioNuevo(!mostrarFormularioNuevo)} 
                     className="w-full py-2 bg-yellow-600/50 hover:bg-yellow-600 rounded-lg text-yellow-300 text-sm flex items-center justify-center gap-2 transition"
                   >
-                    <UserPlus className="w-4 h-4" /> Agregar nuevo médico
+                    <UserPlus className="w-4 h-4" /> {mostrarFormularioNuevo ? "Cancelar" : "Agregar nuevo médico"}
                   </button>
                 </div>
               )}
               
               {/* Formulario para agregar nuevo médico */}
-              {!mostrarAgregarDoctor && formData.matricula.length >= 5 && !buscandoDoctor && !doctorEncontrado && (
+              {mostrarFormularioNuevo && !doctorEncontrado && (
                 <div className="p-3 bg-slate-700/50 rounded-lg space-y-2">
-                  <p className="text-slate-300 text-xs">Nuevo médico:</p>
+                  <p className="text-slate-300 text-xs">Complete los datos del nuevo médico:</p>
                   <div className="space-y-2">
                     <input
                       type="text"
