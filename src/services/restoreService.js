@@ -1,67 +1,58 @@
 // src/services/restoreService.js
 import { supabase } from "./supabase";
+import * as XLSX from "xlsx";
 
-// Restaurar datos desde un archivo Excel
-export async function restoreFromExcel(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+export const restoreFromExcel = async (file) => {
+  try {
+    // Leer el archivo Excel
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data);
     
-    reader.onload = async (e) => {
-      try {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        
-        const results = {};
-        const errors = [];
-        
-        // Procesar cada hoja del Excel
-        for (const sheetName of workbook.SheetNames) {
-          const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet);
-          
-          if (jsonData.length === 0) continue;
-          
-          // Verificar que la tabla existe
-          const validTables = ["active_vehicles", "history", "doctors", "users", "parking_assignments", "parking_history"];
-          
-          if (!validTables.includes(sheetName)) {
-            errors.push(`Hoja "${sheetName}" no es una tabla válida`);
-            continue;
-          }
-          
-          // Limpiar la tabla antes de restaurar (opcional - comentado por seguridad)
-          // const { error: clearError } = await supabase.from(sheetName).delete().neq("id", 0);
-          // if (clearError) errors.push(`Error limpiando ${sheetName}: ${clearError.message}`);
-          
-          // Insertar datos
-          const { error: insertError } = await supabase
-            .from(sheetName)
-            .upsert(jsonData, { onConflict: 'id' });
-          
-          if (insertError) {
-            errors.push(`Error restaurando ${sheetName}: ${insertError.message}`);
-          } else {
-            results[sheetName] = jsonData.length;
-          }
-        }
-        
-        resolve({ success: true, results, errors });
-      } catch (error) {
-        reject(error);
+    const tables = ["active_vehicles", "history", "doctors", "users", "parking_assignments", "parking_history"];
+    
+    for (const tableName of tables) {
+      const sheet = workbook.Sheets[tableName];
+      if (!sheet) {
+        console.warn(`Hoja ${tableName} no encontrada en el archivo`);
+        continue;
       }
-    };
+      
+      // Convertir hoja a JSON
+      const records = XLSX.utils.sheet_to_json(sheet);
+      
+      if (records.length === 0) continue;
+      
+      // Limpiar tabla existente
+      const { error: deleteError } = await supabase
+        .from(tableName)
+        .delete()
+        .neq('id', 0); // Eliminar todos los registros
+      
+      if (deleteError) {
+        console.error(`Error al limpiar ${tableName}:`, deleteError);
+        continue;
+      }
+      
+      // Insertar nuevos registros (en lotes de 100 para evitar problemas)
+      const batchSize = 100;
+      for (let i = 0; i < records.length; i += batchSize) {
+        const batch = records.slice(i, i + batchSize);
+        const { error: insertError } = await supabase
+          .from(tableName)
+          .insert(batch);
+        
+        if (insertError) {
+          console.error(`Error al insertar en ${tableName}:`, insertError);
+          throw insertError;
+        }
+      }
+      
+      console.log(`✅ Tabla ${tableName}: ${records.length} registros restaurados`);
+    }
     
-    reader.onerror = () => reject(new Error("Error leyendo el archivo"));
-    reader.readAsArrayBuffer(file);
-  });
-}
-
-// Verificar si hay datos en una tabla
-export async function checkTableData(tableName) {
-  const { count, error } = await supabase
-    .from(tableName)
-    .select("*", { count: "exact", head: true });
-  
-  if (error) return 0;
-  return count || 0;
-}
+    return { success: true };
+  } catch (error) {
+    console.error("Error en restoreFromExcel:", error);
+    return { success: false, message: error.message };
+  }
+};
