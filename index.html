@@ -1,20 +1,52 @@
 <!-- web/index.html -->
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Parking Morales</title>
-  
-  <!-- PWA splash screen colors -->
-  <meta name="theme-color" content="#0f172a" />
-  <meta name="msapplication-TileColor" content="#0f172a" />
-  <meta name="msapplication-TileImage" content="/logo-144.png" />
-  
-  <!-- Apple splash screens -->
-  <link rel="apple-touch-icon" href="/logo-192.png" />
-  <link rel="apple-touch-startup-image" href="/logo-192.png" />
-  
-  <!-- Tus favicons -->
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-  <link rel="manifest" href="/site.webmanifest" />
-</head>
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Parking Morales - Sistema de Estacionamiento</title>
+    <style>
+      /* Splash inline para que se vea inmediatamente */
+      .splash-inline {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+      }
+      .splash-inline img {
+        width: 120px;
+        height: 120px;
+        border-radius: 24px;
+        box-shadow: 0 0 30px rgba(245, 158, 11, 0.4);
+        animation: pulse 2s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 0.8; transform: scale(1); }
+        50% { opacity: 1; transform: scale(1.05); }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div class="splash-inline" id="splash-inline">
+      <img src="/logo.png" alt="Logo">
+    </div>
+    <script type="module" src="/src/main.jsx"></script>
+    <script>
+      // Eliminar splash inline cuando React cargue
+      window.addEventListener('load', () => {
+        const splash = document.getElementById('splash-inline');
+        if (splash) {
+          splash.style.opacity = '0';
+          setTimeout(() => splash.remove(), 500);
+        }
+      });
+    </script>
+  </body>
+</html>
