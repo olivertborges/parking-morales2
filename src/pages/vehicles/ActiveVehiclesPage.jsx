@@ -67,21 +67,51 @@ export default function ActiveVehiclesPage() {
     }
   }, [searchTerm, vehicles]);
 
-  async function handleExit(vehicle) {
-    const result = await exitVehicle(vehicle.id, vehicle.nombre, vehicle.matricula);
-    
-    if (result.success) {
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
-      await addLog(user.nombre || "Anónimo", "REGISTRO_SALIDA", `${vehicle.nombre} - ${vehicle.matricula}`);
-      
-      toast.success(`🚗 ${vehicle.nombre} salió del estacionamiento`);
-      setExitModal(null);
-      // 👇 Recargar solo la lista, no la página
-      await loadVehicles();
-    } else {
-      toast.error(`❌ Error: ${result.error}`);
-    }
+  // src/pages/vehicles/ActiveVehiclesPage.jsx
+
+async function handleExit(vehicle) {
+  const horaSalida = new Date().toLocaleTimeString('es-AR', { hour12: false });
+  const fechaSalida = new Date().toISOString().split('T')[0];
+  
+  // 1. Actualizar history
+  const { error: updateError } = await supabase
+    .from("history")
+    .update({ 
+      hora_salida: horaSalida,
+      fecha_salida: fechaSalida
+    })
+    .eq("nombre", vehicle.nombre)
+    .eq("matricula", vehicle.matricula)
+    .is("hora_salida", null);
+  
+  if (updateError) {
+    console.error("Error actualizando history:", updateError);
+    toast.error("Error al registrar salida");
+    return;
   }
+  
+  // 2. Eliminar de active_vehicles
+  const { error: deleteError } = await supabase
+    .from("active_vehicles")
+    .delete()
+    .eq("id", vehicle.id);
+  
+  if (deleteError) {
+    console.error("Error eliminando:", deleteError);
+    toast.error("Error al eliminar vehículo");
+    return;
+  }
+  
+  // 3. Liberar lugar en parking_assignments si estaba asignado
+  await supabase
+    .from("parking_assignments")
+    .update({ activo: false, medico_nombre: null, medico_matricula: null, vehiculo_id: null })
+    .eq("vehiculo_id", vehicle.id);
+  
+  toast.success(`🚗 ${vehicle.nombre} salió del estacionamiento`);
+  setExitModal(null);
+  loadVehicles();
+}
 
   function calcularTiempoTranscurrido(horaEntrada) {
     if (!horaEntrada) return "—";
