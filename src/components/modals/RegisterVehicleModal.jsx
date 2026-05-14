@@ -1,10 +1,149 @@
 // src/components/modals/RegisterVehicleModal.jsx
 import { useState, useEffect, useRef } from "react";
-import { X, Clock, UserPlus, KeyRound, AlertCircle } from "lucide-react";
+import { X, Clock, UserPlus, KeyRound, AlertCircle, Delete } from "lucide-react";
 import { registerVehicle } from "../../services/vehicleService";
 import { supabase } from "../../services/supabase";
 import toast from "react-hot-toast";
 import { addLog } from "../../services/logsService";
+
+// Componente del teclado numérico-alfabético para matrículas
+const PlateKeyboard = ({ onConfirm, onClose }) => {
+  const [plate, setPlate] = useState("");
+  
+  const letters = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"];
+  const numbers = ["1","2","3","4","5","6","7","8","9","0"];
+  
+  const addChar = (char) => {
+    const cleanPlate = plate.replace(/\s/g, '');
+    if (cleanPlate.length < 7) {
+      let newPlate = cleanPlate + char;
+      // Auto-format: ABC 1234
+      if (newPlate.length === 3) {
+        setPlate(newPlate + " ");
+      } else if (newPlate.length === 4 && /^[A-Z]{3}\d$/.test(newPlate)) {
+        setPlate(`${newPlate.slice(0, 3)} ${newPlate.slice(3)}`);
+      } else if (newPlate.length === 5 && /^[A-Z]{3}\d{2}$/.test(newPlate)) {
+        setPlate(`${newPlate.slice(0, 3)} ${newPlate.slice(3)}`);
+      } else if (newPlate.length === 6 && /^[A-Z]{3}\d{3}$/.test(newPlate)) {
+        setPlate(`${newPlate.slice(0, 3)} ${newPlate.slice(3)}`);
+      } else if (newPlate.length === 7 && /^[A-Z]{3}\d{4}$/.test(newPlate)) {
+        setPlate(`${newPlate.slice(0, 3)} ${newPlate.slice(3)}`);
+      } else if (newPlate.length === 6 && /^[A-Z]\d{3}[A-Z]{2}$/.test(newPlate)) {
+        setPlate(`${newPlate.slice(0, 1)} ${newPlate.slice(1, 4)} ${newPlate.slice(4)}`);
+      } else if (newPlate.length === 7 && /^[A-Z]\d{3}[A-Z]{3}$/.test(newPlate)) {
+        setPlate(`${newPlate.slice(0, 1)} ${newPlate.slice(1, 4)} ${newPlate.slice(4)}`);
+      } else {
+        setPlate(newPlate);
+      }
+    }
+  };
+  
+  const removeChar = () => {
+    if (plate.length > 0) {
+      if (plate.endsWith(" ")) {
+        setPlate(plate.slice(0, -2));
+      } else {
+        setPlate(plate.slice(0, -1));
+      }
+    }
+  };
+  
+  const confirmPlate = () => {
+    const cleanPlate = plate.replace(/\s/g, '');
+    if (cleanPlate.length >= 5 && cleanPlate.length <= 7) {
+      onConfirm(plate);
+      onClose();
+    } else {
+      toast.error("La matrícula debe tener entre 5 y 7 caracteres");
+    }
+  };
+  
+  return (
+    <div className="fixed inset-0 z-[200] bg-black/95 flex flex-col">
+      <div className="flex justify-between items-center p-4 border-b border-gray-800">
+        <h3 className="text-white font-bold text-lg flex items-center gap-2">
+          <KeyRound className="w-5 h-5 text-amber-400" />
+          Ingresar matrícula
+        </h3>
+        <button onClick={onClose} className="text-white p-2 hover:bg-white/10 rounded-full transition">
+          <X className="w-6 h-6" />
+        </button>
+      </div>
+      
+      <div className="flex-1 flex flex-col p-6">
+        {/* Display de la matrícula */}
+        <div className="bg-slate-800 rounded-2xl p-6 mb-6 border-2 border-amber-500/30">
+          <p className="text-slate-400 text-xs text-center mb-2 tracking-wide">MATRÍCULA</p>
+          <div className="text-center">
+            {plate ? (
+              <p className="text-3xl md:text-4xl font-mono font-bold text-white tracking-wider">{plate}</p>
+            ) : (
+              <p className="text-xl text-slate-500">Ingrese la matrícula</p>
+            )}
+          </div>
+          <p className="text-slate-500 text-xs text-center mt-3">
+            {plate.replace(/\s/g, '').length}/7 caracteres
+          </p>
+        </div>
+        
+        {/* Letras */}
+        <div className="mb-4">
+          <p className="text-slate-400 text-xs mb-2">LETRAS</p>
+          <div className="grid grid-cols-7 gap-2">
+            {letters.map(letter => (
+              <button
+                key={letter}
+                onClick={() => addChar(letter)}
+                className="aspect-square bg-slate-700 rounded-xl text-white font-bold text-xl hover:bg-slate-600 active:bg-slate-500 transition"
+              >
+                {letter}
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        {/* Números */}
+        <div className="mb-4">
+          <p className="text-slate-400 text-xs mb-2">NÚMEROS</p>
+          <div className="grid grid-cols-5 gap-2">
+            {numbers.map(number => (
+              <button
+                key={number}
+                onClick={() => addChar(number)}
+                className="aspect-square bg-slate-700 rounded-xl text-white font-bold text-xl hover:bg-slate-600 active:bg-slate-500 transition"
+              >
+                {number}
+              </button>
+            ))}
+            <button
+              onClick={removeChar}
+              className="aspect-square bg-red-600 rounded-xl text-white hover:bg-red-700 active:bg-red-800 transition flex items-center justify-center"
+            >
+              <Delete className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+        
+        {/* Botones de acción */}
+        <div className="flex gap-3 mt-2">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 bg-slate-700 rounded-xl text-white font-medium hover:bg-slate-600 transition"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={confirmPlate}
+            disabled={plate.replace(/\s/g, '').length < 5}
+            className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-orange-600 rounded-xl text-white font-bold disabled:opacity-50 transition"
+          >
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function RegisterVehicleModal({ open, onClose, onSuccess, defaultType = "Medico" }) {
   const [formData, setFormData] = useState({
@@ -23,6 +162,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
   const [doctorEncontrado, setDoctorEncontrado] = useState(null);
   const [mostrarAgregarDoctor, setMostrarAgregarDoctor] = useState(false);
   const [nuevoDoctor, setNuevoDoctor] = useState({ nombre: "", especialidad: "" });
+  const [mostrarTeclado, setMostrarTeclado] = useState(false);
   
   const ultimaMatriculaBuscada = useRef("");
 
@@ -67,6 +207,10 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
   const handleMatriculaChange = (e) => {
     const formateado = formatearMatriculaEnTiempoReal(e.target.value);
     setFormData({ ...formData, matricula: formateado });
+  };
+
+  const handleTecladoConfirm = (matriculaFormateada) => {
+    setFormData({ ...formData, matricula: matriculaFormateada });
   };
 
   // Buscar médico por matrícula
@@ -221,6 +365,14 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
 
   return (
     <>
+      {/* TECLADO PERSONALIZADO PARA MATRÍCULAS */}
+      {mostrarTeclado && (
+        <PlateKeyboard
+          onConfirm={handleTecladoConfirm}
+          onClose={() => setMostrarTeclado(false)}
+        />
+      )}
+
       {/* MODAL PRINCIPAL */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
@@ -278,32 +430,41 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 </select>
               </div>
 
-              {/* Matrícula - Campo mejorado sin OCR */}
+              {/* Matrícula - Campo con botón para teclado personalizado */}
               <div>
                 <label className="block text-sm font-semibold text-white mb-2 flex items-center gap-2">
                   <KeyRound className="w-4 h-4 text-amber-400" />
                   Matrícula
                 </label>
-                <div className="relative">
+                <div className="flex gap-2">
                   <input
                     type="text"
                     required
                     value={formData.matricula}
                     onChange={handleMatriculaChange}
-                    className="w-full bg-slate-700 border-2 border-slate-600 rounded-xl p-4 text-white uppercase font-mono text-2xl tracking-wider text-center focus:border-amber-500 focus:outline-none transition"
+                    className="flex-1 bg-slate-700 border-2 border-slate-600 rounded-xl p-4 text-white uppercase font-mono text-xl tracking-wider text-center focus:border-amber-500 focus:outline-none transition"
                     placeholder="ABC 1234"
                     autoComplete="off"
                     maxLength={9}
                   />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs bg-slate-800 px-2 py-1 rounded">
-                    {formData.matricula.replace(/\s/g, '').length}/7
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMostrarTeclado(true)}
+                    className="px-4 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition flex items-center gap-2"
+                    title="Teclado de matrícula"
+                  >
+                    <KeyRound className="w-5 h-5" />
+                    <span className="hidden sm:inline text-sm">Teclado</span>
+                  </button>
                 </div>
                 <div className="flex flex-wrap justify-between mt-2 gap-2">
                   <span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-1 rounded">Ej: ABC 1234</span>
                   <span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-1 rounded">Ej: A 123 BCD</span>
                   <span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-1 rounded">Ej: AB 123 CD</span>
                 </div>
+                <p className="text-slate-500 text-xs mt-2">
+                  {formData.matricula.replace(/\s/g, '').length}/7 caracteres
+                </p>
               </div>
 
               {/* Estado de búsqueda */}
