@@ -37,27 +37,42 @@ function App() {
           <Route path="doctors" element={<DoctorsPage />} />
           <Route path="parking" element={<ParkingPage />} />
           <Route path="parking-history" element={<ParkingHistoryPage />} />
+          
+          {/* Rutas protegidas solo para admin */}
           <Route path="reservas" element={
             <ProtectedRoute adminOnly={true}>
-<Route path="/backup" element={<Backup />} />
-  <Route path="/restore" element={<Restore />} />
               <ReservasPage />
             </ProtectedRoute>
           } />
-          {/* Rutas protegidas solo para admin */}
+          
           <Route path="users" element={
             <ProtectedRoute adminOnly={true}>
               <UsersPage />
             </ProtectedRoute>
           } />
+          
           <Route path="logs" element={
             <ProtectedRoute adminOnly={true}>
               <LogsPage />
             </ProtectedRoute>
           } />
+          
           <Route path="tv" element={
             <ProtectedRoute adminOnly={true}>
               <TVPage />
+            </ProtectedRoute>
+          } />
+
+          {/* 👇 AGREGAR BACKUP Y RESTORE AQUÍ - También protegidos para admin */}
+          <Route path="backup" element={
+            <ProtectedRoute adminOnly={true}>
+              <Backup />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="restore" element={
+            <ProtectedRoute adminOnly={true}>
+              <Restore />
             </ProtectedRoute>
           } />
         </Route>
