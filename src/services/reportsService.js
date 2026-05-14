@@ -59,82 +59,59 @@ export async function getMedicosSinTarjeta() {
   }
 }
 
-export async function getIngresosPorDia(fechaInicio, fechaFin) {
+export async function getTotalesPorRango(fechaInicio, fechaFin) {
   try {
-    // Construir consulta base
-    let query = supabase
+    const { data, error } = await supabase
       .from("history")
-      .select("*");
-
-    // Filtrar por rango de fechas si se proporcionan
-    if (fechaInicio && fechaFin) {
-      query = query
-        .gte("fecha", fechaInicio)
-        .lte("fecha", fechaFin);
-    }
-
-    const { data, error } = await query.order("fecha", { ascending: false });
+      .select("fecha, monto, tipo, hora_salida")
+      .gte("fecha", fechaInicio)
+      .lte("fecha", fechaFin);
 
     if (error) throw error;
 
-    // Si no hay datos, retornar array vacío
     if (!data || data.length === 0) {
-      console.log("No hay datos en el rango seleccionado");
-      return [];
+      return {
+        ingresos: 0,
+        egresos: 0,
+        pendientes: 0,
+        saldo: 0
+      };
     }
 
-    const groupedByDate = {};
+    let ingresos = 0;
+    let egresos = 0;
+    let pendientes = 0;
 
-    (data || []).forEach(item => {
-      // Normalizar formato de fecha
-      let fechaKey = item.fecha;
-      if (fechaKey && fechaKey.includes("/")) {
-        const [day, month, year] = fechaKey.split("/");
-        fechaKey = `${year}-${month}-${day}`;
-      }
-
-      if (!groupedByDate[fechaKey]) {
-        groupedByDate[fechaKey] = {
-          fecha: fechaKey,
-          total_ingresos: 0,      // Suma de montos
-          total_egresos: 0,       // Suma de egresos (si aplica)
-          cantidad_registros: 0,   // Conteo de registros
-          activos: 0,
-          salieron: 0
-        };
-      }
-
-      // Sumar montos (importante: usa el campo correcto de tu tabla)
-      const monto = parseFloat(item.monto) || parseFloat(item.pagado) || parseFloat(item.tarifa) || 0;
+    data.forEach(item => {
+      const monto = parseFloat(item.monto) || 0;
       
-      // Identificar si es ingreso o egreso (ajusta según tu tabla)
-      if (item.tipo === "ingreso" || item.tipo === "pago" || !item.tipo) {
-        groupedByDate[fechaKey].total_ingresos += monto;
+      if (item.tipo === "ingreso" || item.tipo === "pago") {
+        ingresos += monto;
       } else if (item.tipo === "egreso" || item.tipo === "gasto") {
-        groupedByDate[fechaKey].total_egresos += monto;
+        egresos += monto;
       }
 
-      groupedByDate[fechaKey].cantidad_registros++;
-
-      // Estado del vehículo
-      if (item.hora_salida && item.hora_salida !== "") {
-        groupedByDate[fechaKey].salieron++;
-      } else {
-        groupedByDate[fechaKey].activos++;
+      // Pendientes = vehículos activos (sin hora_salida)
+      if (!item.hora_salida || item.hora_salida === "") {
+        pendientes++;
       }
     });
 
-    // Convertir a array y calcular saldo
-    const resultados = Object.values(groupedByDate).map(dia => ({
-      ...dia,
-      saldo: dia.total_ingresos - dia.total_egresos
-    }));
-
-    return resultados.slice(0, 30);
+    return {
+      ingresos: ingresos,
+      egresos: egresos,
+      pendientes: pendientes,
+      saldo: ingresos - egresos
+    };
 
   } catch (error) {
-    console.error("Error en getIngresosPorDia:", error);
-    return [];
+    console.error("Error:", error);
+    return {
+      ingresos: 0,
+      egresos: 0,
+      pendientes: 0,
+      saldo: 0
+    };
   }
 }
 
