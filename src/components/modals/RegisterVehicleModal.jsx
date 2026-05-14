@@ -179,17 +179,20 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     }
   }, [defaultType, open]);
 
-  // OCR
+  // Iniciar cámara OCR
   const abrirCamaraOCR = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: "environment" } 
+      });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        await videoRef.current.play();
       }
       setMostrarOCR(true);
     } catch (err) {
+      console.error("Error al abrir cámara:", err);
       toast.error("Error al acceder a la cámara: " + err.message);
     }
   };
@@ -207,37 +210,71 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     
     setOcrProcesando(true);
     
-    const canvas = document.createElement("canvas");
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    const context = canvas.getContext("2d");
-    context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-    
     try {
+      const canvas = document.createElement("canvas");
+      const video = videoRef.current;
+      
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        throw new Error("La cámara no está lista");
+      }
+      
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext("2d");
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      const imageData = canvas.toDataURL("image/jpeg", 0.8);
+      
       const { data: { text } } = await Tesseract.recognize(
-        canvas.toDataURL(),
+        imageData,
         'spa',
-        { logger: (m) => console.log(m) }
+        {
+          logger: (m) => {
+            if (m.status === 'recognizing text') {
+              console.log(`Progreso OCR: ${Math.round(m.progress * 100)}%`);
+            }
+          }
+        }
       );
       
-      const matriculaDetectada = formatearMatriculaEnTiempoReal(text);
+      console.log("Texto detectado OCR:", text);
       
-      if (matriculaDetectada && matriculaDetectada.length >= 5) {
-        setFormData(prev => ({ ...prev, matricula: matriculaDetectada }));
-        toast.success(`Matrícula detectada: ${matriculaDetectada}`);
+      let matriculaLimpia = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      let matriculaFormateada = matriculaLimpia;
+      
+      if (matriculaLimpia.length === 6 && /^[A-Z]{3}\d{3}$/.test(matriculaLimpia)) {
+        matriculaFormateada = `${matriculaLimpia.slice(0, 3)} ${matriculaLimpia.slice(3, 6)}`;
+      } else if (matriculaLimpia.length === 7 && /^[A-Z]{3}\d{4}$/.test(matriculaLimpia)) {
+        matriculaFormateada = `${matriculaLimpia.slice(0, 3)} ${matriculaLimpia.slice(3, 7)}`;
+      } else if (matriculaLimpia.length === 7 && /^[A-Z]\d{3}\d{3}$/.test(matriculaLimpia)) {
+        matriculaFormateada = `${matriculaLimpia.slice(0, 1)} ${matriculaLimpia.slice(1, 4)} ${matriculaLimpia.slice(4, 7)}`;
+      } else if (matriculaLimpia.length >= 5 && matriculaLimpia.length <= 8) {
+        if (matriculaLimpia.length <= 4) {
+          matriculaFormateada = matriculaLimpia;
+        } else if (matriculaLimpia.length <= 6) {
+          matriculaFormateada = `${matriculaLimpia.slice(0, 3)} ${matriculaLimpia.slice(3)}`;
+        } else {
+          matriculaFormateada = `${matriculaLimpia.slice(0, 3)} ${matriculaLimpia.slice(3, 6)} ${matriculaLimpia.slice(6)}`;
+        }
+      }
+      
+      if (matriculaFormateada && matriculaFormateada.replace(/\s/g, '').length >= 5) {
+        setFormData(prev => ({ ...prev, matricula: matriculaFormateada }));
+        toast.success(`Matrícula detectada: ${matriculaFormateada}`);
         
-        const doctor = await buscarDoctorPorMatricula(matriculaDetectada);
+        const doctor = await buscarDoctorPorMatricula(matriculaFormateada);
         if (doctor) {
           setFormData(prev => ({ ...prev, nombre: doctor.nombre, tipo: doctor.tipo || "Medico" }));
           toast.success(`✅ Médico encontrado: ${doctor.nombre}`);
         }
       } else {
-        toast.error("No se pudo detectar la matrícula");
+        toast.error("No se pudo detectar la matrícula. Intente nuevamente con mejor luz.");
       }
       
       cerrarCamaraOCR();
     } catch (err) {
-      toast.error("Error procesando imagen");
+      console.error("Error en OCR:", err);
+      toast.error("Error procesando la imagen: " + err.message);
     } finally {
       setOcrProcesando(false);
     }
@@ -305,44 +342,86 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
 
   return (
     <>
-      {/* Modal OCR */}
+      {/* Modal OCR - CORREGIDO */}
       {mostrarOCR && (
-        <div className="fixed inset-0 bg-black/95 z-[60] flex flex-col">
-          <div className="flex justify-between items-center p-4 bg-black/50">
-            <h3 className="text-white font-bold">Escanear matrícula</h3>
-            <button onClick={cerrarCamaraOCR} className="text-white p-2"><X className="w-6 h-6" /></button>
+        <div 
+          className="fixed inset-0 z-[100] flex flex-col" 
+          style={{ backgroundColor: 'black' }}
+        >
+          {/* Header */}
+          <div className="flex justify-between items-center p-4 bg-black/80 z-10">
+            <h3 className="text-white font-bold flex items-center gap-2">
+              <Camera className="w-5 h-5 text-amber-400" />
+              Escanear matrícula
+            </h3>
+            <button 
+              onClick={cerrarCamaraOCR} 
+              className="text-white p-2 hover:bg-white/20 rounded-full transition"
+            >
+              <X className="w-6 h-6" />
+            </button>
           </div>
-          <div className="flex-1 flex items-center justify-center p-4">
-            <div className="relative w-full max-w-md">
-              <video ref={videoRef} autoPlay playsInline className="w-full rounded-2xl border-2 border-amber-500" />
-              <div className="absolute inset-0 border-2 border-amber-400 rounded-2xl pointer-events-none">
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4/5 h-1/4 border-2 border-amber-400 rounded-lg"></div>
+
+          {/* Video - ocupa todo el espacio disponible */}
+          <div className="flex-1 relative bg-black overflow-hidden">
+            <video 
+              ref={videoRef} 
+              autoPlay 
+              playsInline 
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{ transform: 'scaleX(-1)' }}
+            />
+            
+            {/* Guía para encuadrar */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-4/5 h-1/4 border-2 border-amber-400 rounded-lg">
+                <p className="text-amber-400 text-xs text-center mt-2 bg-black/60 inline-block px-2 rounded mx-auto block w-fit">
+                  Centra la matrícula aquí
+                </p>
               </div>
             </div>
           </div>
+
+          {/* Botones */}
+          <div className="p-4 flex gap-3 bg-black/80 z-10">
+            <button 
+              onClick={cerrarCamaraOCR} 
+              className="flex-1 py-3 bg-red-600 rounded-xl text-white font-semibold hover:bg-red-700 transition"
+            >
+              Cancelar
+            </button>
+            <button 
+              onClick={capturarYLeer} 
+              disabled={ocrProcesando}
+              className="flex-1 py-3 bg-amber-500 rounded-xl text-white font-semibold hover:bg-amber-600 transition disabled:opacity-50"
+            >
+              {ocrProcesando ? "Procesando..." : "Capturar"}
+            </button>
+          </div>
+
+          {/* Overlay de procesamiento */}
           {ocrProcesando && (
-            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[70]">
-              <div className="text-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"></div><p className="text-white">Procesando...</p></div>
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[110]">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"></div>
+                <p className="text-white">Procesando imagen con OCR...</p>
+              </div>
             </div>
           )}
-          <div className="p-4 flex gap-3">
-            <button onClick={cerrarCamaraOCR} className="flex-1 py-3 bg-red-600 rounded-xl text-white">Cancelar</button>
-            <button onClick={capturarYLeer} className="flex-1 py-3 bg-amber-500 rounded-xl text-white">Capturar</button>
-          </div>
         </div>
       )}
 
-      {/* Modal principal - CORREGIDO con fondo completo */}
+      {/* Modal principal */}
       {open && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    backdropFilter: 'blur(10px)'
-  }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          backdropFilter: 'blur(10px)'
+        }}>
           <div className="bg-slate-800 rounded-2xl max-w-md w-full border border-amber-500/30 shadow-2xl max-h-[90vh] overflow-y-auto">
             {/* Header */}
             <div className={`rounded-t-2xl bg-gradient-to-r ${colors.bg} p-5 sticky top-0 z-10`}>
@@ -366,10 +445,24 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
               {/* Hora */}
               <div className="bg-slate-700/50 rounded-xl p-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-amber-400" /><span className="text-slate-400 text-sm">Hora de entrada</span></div>
                   <div className="flex items-center gap-2">
-                    <input type="time" value={formData.hora_entrada} onChange={(e) => setFormData({ ...formData, hora_entrada: e.target.value })} className="bg-slate-800 rounded-lg p-1.5 text-white text-sm border border-slate-600 focus:border-amber-500 outline-none" />
-                    <button type="button" onClick={setCurrentTime} className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded-lg">Ahora</button>
+                    <Clock className="w-4 h-4 text-amber-400" />
+                    <span className="text-slate-400 text-sm">Hora de entrada</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="time" 
+                      value={formData.hora_entrada} 
+                      onChange={(e) => setFormData({ ...formData, hora_entrada: e.target.value })} 
+                      className="bg-slate-800 rounded-lg p-1.5 text-white text-sm border border-slate-600 focus:border-amber-500 outline-none" 
+                    />
+                    <button 
+                      type="button" 
+                      onClick={setCurrentTime} 
+                      className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded-lg hover:bg-amber-500/30 transition"
+                    >
+                      Ahora
+                    </button>
                   </div>
                 </div>
               </div>
@@ -377,7 +470,11 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
               {/* Tipo */}
               <div>
                 <label className="block text-sm font-semibold text-white mb-2">Tipo</label>
-                <select value={formData.tipo} onChange={(e) => setFormData({ ...formData, tipo: e.target.value })} className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white">
+                <select 
+                  value={formData.tipo} 
+                  onChange={(e) => setFormData({ ...formData, tipo: e.target.value })} 
+                  className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white focus:border-amber-500 focus:outline-none"
+                >
                   <option value="Medico">👨‍⚕️ Médico</option>
                   <option value="Junta">🏛️ Junta Directiva</option>
                   <option value="Reserva">⭐ Reserva</option>
@@ -393,37 +490,46 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                     required
                     value={formData.matricula}
                     onChange={handleMatriculaChange}
-                    className="flex-1 bg-slate-700 border border-slate-600 rounded-xl p-3 text-white uppercase font-mono tracking-wide"
-                    placeholder="ABC 1234 / A 123 BCD / B 805 419"
+                    className="flex-1 bg-slate-700 border border-slate-600 rounded-xl p-3 text-white uppercase font-mono tracking-wide focus:border-amber-500 focus:outline-none"
+                    placeholder="ABC 1234 / A 123 BCD"
                     autoComplete="off"
                   />
-                  <button type="button" onClick={abrirCamaraOCR} className="px-4 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition">
+                  <button 
+                    type="button" 
+                    onClick={abrirCamaraOCR} 
+                    className="px-4 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition"
+                    title="Escanear matrícula"
+                  >
                     <Camera className="w-5 h-5" />
                   </button>
                 </div>
+                
                 {buscandoDoctor && (
                   <div className="mt-2 flex items-center gap-2 text-amber-400 text-xs">
                     <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-amber-500"></div>
                     Buscando médico...
                   </div>
                 )}
+                
                 {doctorEncontrado && (
                   <div className="mt-2 p-2 bg-green-500/20 border border-green-500/30 rounded-lg text-green-400 text-xs flex items-center justify-between">
                     <span>✅ Médico encontrado: {doctorEncontrado.nombre}</span>
                   </div>
                 )}
+                
                 {mostrarAgregarDoctor && formData.matricula.length >= 5 && !buscandoDoctor && !doctorEncontrado && (
                   <div className="mt-2 p-2 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">
                     <p className="text-yellow-400 text-xs mb-2">⚠️ Médico no encontrado para la matrícula {formData.matricula}</p>
                     <button
                       type="button"
                       onClick={() => setMostrarAgregarDoctor(false)}
-                      className="w-full py-1.5 bg-yellow-600/50 hover:bg-yellow-600 rounded-lg text-yellow-300 text-xs flex items-center justify-center gap-1"
+                      className="w-full py-1.5 bg-yellow-600/50 hover:bg-yellow-600 rounded-lg text-yellow-300 text-xs flex items-center justify-center gap-1 transition"
                     >
                       <UserPlus className="w-3 h-3" /> Agregar nuevo médico
                     </button>
                   </div>
                 )}
+                
                 {!mostrarAgregarDoctor && formData.matricula.length >= 5 && !buscandoDoctor && !doctorEncontrado && (
                   <div className="mt-2 p-2 bg-slate-700/50 rounded-lg">
                     <div className="flex gap-2">
@@ -432,12 +538,12 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                         placeholder="Nombre del nuevo médico"
                         value={nuevoDoctor.nombre}
                         onChange={(e) => setNuevoDoctor({ ...nuevoDoctor, nombre: e.target.value })}
-                        className="flex-1 bg-slate-800 rounded-lg p-1.5 text-white text-xs"
+                        className="flex-1 bg-slate-800 rounded-lg p-1.5 text-white text-xs focus:outline-none focus:border-amber-500"
                       />
                       <button
                         type="button"
                         onClick={agregarNuevoDoctor}
-                        className="px-3 py-1.5 bg-green-600 rounded-lg text-white text-xs"
+                        className="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded-lg text-white text-xs transition"
                       >
                         Guardar
                       </button>
@@ -454,7 +560,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                   required
                   value={formData.nombre}
                   onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white focus:border-amber-500 focus:outline-none"
                   placeholder="Nombre del médico"
                 />
               </div>
@@ -462,23 +568,54 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
               {/* Sin tarjeta */}
               <div className="flex items-center justify-between p-3 bg-slate-700/50 rounded-xl">
                 <label className="text-white text-sm">Sin tarjeta</label>
-                <input type="checkbox" checked={formData.sin_tarjeta} onChange={(e) => setFormData({ ...formData, sin_tarjeta: e.target.checked })} className="w-5 h-5 rounded" />
+                <input 
+                  type="checkbox" 
+                  checked={formData.sin_tarjeta} 
+                  onChange={(e) => setFormData({ ...formData, sin_tarjeta: e.target.checked })} 
+                  className="w-5 h-5 rounded accent-amber-500"
+                />
               </div>
 
               {formData.sin_tarjeta && (
                 <div className="space-y-2 p-3 bg-red-500/10 rounded-xl">
-                  <select value={formData.motivo} onChange={(e) => setFormData({ ...formData, motivo: e.target.value })} className="w-full bg-slate-700 rounded-lg p-2 text-white text-sm">
-                    <option>Olvidó</option><option>Perdió</option><option>No funciona</option>
+                  <select 
+                    value={formData.motivo} 
+                    onChange={(e) => setFormData({ ...formData, motivo: e.target.value })} 
+                    className="w-full bg-slate-700 rounded-lg p-2 text-white text-sm focus:outline-none"
+                  >
+                    <option>Olvidó</option>
+                    <option>Perdió</option>
+                    <option>No funciona</option>
                   </select>
-                  <textarea placeholder="Observaciones" rows="2" value={formData.observaciones} onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })} className="w-full bg-slate-700 rounded-lg p-2 text-white text-sm resize-none" />
+                  <textarea 
+                    placeholder="Observaciones" 
+                    rows="2" 
+                    value={formData.observaciones} 
+                    onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })} 
+                    className="w-full bg-slate-700 rounded-lg p-2 text-white text-sm resize-none focus:outline-none focus:border-amber-500"
+                  />
                 </div>
               )}
 
-              {error && <div className="bg-red-500/10 rounded-xl p-2 text-red-400 text-xs text-center">{error}</div>}
+              {error && (
+                <div className="bg-red-500/10 rounded-xl p-2 text-red-400 text-xs text-center">
+                  {error}
+                </div>
+              )}
 
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={handleClose} className="flex-1 py-3 rounded-xl border border-slate-600 text-white">Cancelar</button>
-                <button type="submit" disabled={loading} className={`flex-1 py-3 rounded-xl font-semibold text-white bg-gradient-to-r ${colors.buttonBg}`}>
+                <button 
+                  type="button" 
+                  onClick={handleClose} 
+                  className="flex-1 py-3 rounded-xl border border-slate-600 text-white hover:bg-slate-700 transition"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={loading} 
+                  className={`flex-1 py-3 rounded-xl font-semibold text-white bg-gradient-to-r ${colors.buttonBg} hover:opacity-90 transition disabled:opacity-50`}
+                >
                   {loading ? "Registrando..." : "Registrar"}
                 </button>
               </div>
