@@ -60,6 +60,7 @@ export async function getMedicosSinTarjeta() {
 }
 
 // Obtener ingresos por día
+// Obtener ingresos totales del día (todos los que entraron, hayan salido o no)
 export async function getIngresosPorDia() {
   try {
     const { data, error } = await supabase
@@ -80,22 +81,22 @@ export async function getIngresosPorDia() {
       if (!groupedByDate[fechaKey]) {
         groupedByDate[fechaKey] = {
           fecha: fechaKey,
-          ingresos: 0,
-          egresos: 0,
-          pendientes: 0
+          total_ingresos: 0,
+          activos: 0,
+          salieron: 0
         };
       }
-      groupedByDate[fechaKey].ingresos++;
+      groupedByDate[fechaKey].total_ingresos++;
       if (item.hora_salida) {
-        groupedByDate[fechaKey].egresos++;
+        groupedByDate[fechaKey].salieron++;
       } else {
-        groupedByDate[fechaKey].pendientes++;
+        groupedByDate[fechaKey].activos++;
       }
     });
 
     return Object.values(groupedByDate).slice(0, 30);
   } catch (error) {
-    console.error("Error obteniendo ingresos por día:", error);
+    console.error("Error:", error);
     return [];
   }
 }
