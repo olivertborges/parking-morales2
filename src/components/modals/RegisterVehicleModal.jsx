@@ -1,11 +1,10 @@
 // src/components/modals/RegisterVehicleModal.jsx
 import { useState, useEffect, useRef } from "react";
-import { X, Clock, Camera, UserPlus } from "lucide-react";
+import { X, Clock, UserPlus, KeyRound, AlertCircle } from "lucide-react";
 import { registerVehicle } from "../../services/vehicleService";
 import { supabase } from "../../services/supabase";
 import toast from "react-hot-toast";
 import { addLog } from "../../services/logsService";
-import Tesseract from "tesseract.js";
 
 export default function RegisterVehicleModal({ open, onClose, onSuccess, defaultType = "Medico" }) {
   const [formData, setFormData] = useState({
@@ -21,35 +20,47 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [buscandoDoctor, setBuscandoDoctor] = useState(false);
-  const [ocrProcesando, setOcrProcesando] = useState(false);
   const [doctorEncontrado, setDoctorEncontrado] = useState(null);
   const [mostrarAgregarDoctor, setMostrarAgregarDoctor] = useState(false);
   const [nuevoDoctor, setNuevoDoctor] = useState({ nombre: "", especialidad: "" });
   
   const ultimaMatriculaBuscada = useRef("");
 
+  // Normalizar matrícula (sin espacios, mayúsculas)
   const normalizarMatricula = (matricula) => {
     if (!matricula) return "";
     return matricula.replace(/\s/g, '').toUpperCase();
   };
 
+  // Formatear matrícula en tiempo real (soporta múltiples formatos)
   const formatearMatriculaEnTiempoReal = (texto) => {
     let limpio = texto.toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (limpio.length === 0) return "";
     
-    if (limpio.length <= 3) return limpio;
+    // Formato 1: ABC 123 (3 letras + 3 números)
     if (limpio.length === 6 && /^[A-Z]{3}\d{3}$/.test(limpio)) {
       return `${limpio.slice(0, 3)} ${limpio.slice(3, 6)}`;
     }
+    // Formato 2: ABC 1234 (3 letras + 4 números)
     if (limpio.length === 7 && /^[A-Z]{3}\d{4}$/.test(limpio)) {
       return `${limpio.slice(0, 3)} ${limpio.slice(3, 7)}`;
     }
-    if (limpio.length === 7 && /^[A-Z]\d{3}\d{3}$/.test(limpio)) {
+    // Formato 3: A 123 BCD (1 letra + 3 números + 3 letras)
+    if (limpio.length === 7 && /^[A-Z]\d{3}[A-Z]{3}$/.test(limpio)) {
       return `${limpio.slice(0, 1)} ${limpio.slice(1, 4)} ${limpio.slice(4, 7)}`;
     }
-    if (limpio.length >= 5 && limpio.length <= 8) {
+    // Formato 4: AB 123 CD (2 letras + 3 números + 2 letras)
+    if (limpio.length === 7 && /^[A-Z]{2}\d{3}[A-Z]{2}$/.test(limpio)) {
+      return `${limpio.slice(0, 2)} ${limpio.slice(2, 5)} ${limpio.slice(5, 7)}`;
+    }
+    // Durante la escritura: mostrar con espacio después de 3 caracteres
+    if (limpio.length > 3 && limpio.length <= 6) {
       return `${limpio.slice(0, 3)} ${limpio.slice(3)}`;
     }
+    if (limpio.length > 6) {
+      return `${limpio.slice(0, 3)} ${limpio.slice(3, 6)} ${limpio.slice(6)}`;
+    }
+    
     return limpio;
   };
 
@@ -58,6 +69,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     setFormData({ ...formData, matricula: formateado });
   };
 
+  // Buscar médico por matrícula
   const buscarDoctorPorMatricula = async (matricula) => {
     if (!matricula || matricula.length < 4) return null;
     const matriculaNormalizada = normalizarMatricula(matricula);
@@ -66,6 +78,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     return data?.find(doctor => normalizarMatricula(doctor.matricula || "") === matriculaNormalizada) || null;
   };
 
+  // Efecto para buscar médico automáticamente al escribir la matrícula
   useEffect(() => {
     const buscar = async () => {
       const matriculaLimpia = normalizarMatricula(formData.matricula);
@@ -95,6 +108,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     return () => clearTimeout(timeout);
   }, [formData.matricula]);
 
+  // Agregar nuevo médico
   const agregarNuevoDoctor = async () => {
     if (!nuevoDoctor.nombre.trim()) {
       toast.error("Ingrese el nombre del médico");
@@ -144,68 +158,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
   useEffect(() => {
     if (open) resetForm();
   }, [defaultType, open]);
-
-  // ========== OCR CON CÁMARA NATIVA (FUNCIONA EN ANDROID) ==========
-  const abrirCamaraOCR = () => {
-    // Crear input file que abre la cámara nativa
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.capture = 'environment'; // Esto abre la cámara directamente en Android
-    
-    input.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      
-      setOcrProcesando(true);
-      
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        try {
-          toast.loading("Procesando imagen...", { id: "ocr" });
-          
-          const { data: { text } } = await Tesseract.recognize(
-            event.target.result,
-            'spa',
-            { logger: (m) => console.log(m) }
-          );
-          
-          console.log("Texto OCR:", text);
-          
-          // Limpiar y extraer solo matrícula (primeros 6-8 caracteres alfanuméricos)
-          let cleaned = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
-          
-          // Tomar solo los primeros 8 caracteres (matrícula típica)
-          if (cleaned.length > 8) {
-            cleaned = cleaned.substring(0, 8);
-          }
-          
-          const matriculaDetectada = formatearMatriculaEnTiempoReal(cleaned);
-          
-          if (matriculaDetectada && matriculaDetectada.replace(/\s/g, '').length >= 5) {
-            setFormData(prev => ({ ...prev, matricula: matriculaDetectada }));
-            toast.success(`Matrícula detectada: ${matriculaDetectada}`, { id: "ocr" });
-            
-            const doctor = await buscarDoctorPorMatricula(matriculaDetectada);
-            if (doctor) {
-              setFormData(prev => ({ ...prev, nombre: doctor.nombre }));
-              toast.success(`✅ Médico encontrado: ${doctor.nombre}`);
-            }
-          } else {
-            toast.error("No se pudo detectar la matrícula. Intente con mejor luz y centrando la matrícula.", { id: "ocr" });
-          }
-        } catch (err) {
-          console.error("Error OCR:", err);
-          toast.error("Error procesando la imagen", { id: "ocr" });
-        } finally {
-          setOcrProcesando(false);
-        }
-      };
-      reader.readAsDataURL(file);
-    };
-    
-    input.click();
-  };
 
   const getColors = () => {
     const tipo = formData.tipo;
@@ -291,6 +243,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
             </div>
 
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
+              {/* Hora de entrada */}
               <div className="bg-slate-700/50 rounded-xl p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -304,19 +257,20 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                       onChange={(e) => setFormData({ ...formData, hora_entrada: e.target.value })} 
                       className="bg-slate-800 rounded-lg p-1.5 text-white text-sm border border-slate-600 focus:border-amber-500 outline-none" 
                     />
-                    <button type="button" onClick={setCurrentTime} className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded-lg">
+                    <button type="button" onClick={setCurrentTime} className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded-lg hover:bg-amber-500/30 transition">
                       Ahora
                     </button>
                   </div>
                 </div>
               </div>
 
+              {/* Tipo */}
               <div>
                 <label className="block text-sm font-semibold text-white mb-2">Tipo</label>
                 <select 
                   value={formData.tipo} 
                   onChange={(e) => setFormData({ ...formData, tipo: e.target.value })} 
-                  className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white focus:border-amber-500 focus:outline-none"
                 >
                   <option value="Medico">👨‍⚕️ Médico</option>
                   <option value="Junta">🏛️ Junta Directiva</option>
@@ -324,75 +278,89 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 </select>
               </div>
 
+              {/* Matrícula - Campo mejorado sin OCR */}
               <div>
-                <label className="block text-sm font-semibold text-white mb-2">Matrícula</label>
-                <div className="flex gap-2">
+                <label className="block text-sm font-semibold text-white mb-2 flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-amber-400" />
+                  Matrícula
+                </label>
+                <div className="relative">
                   <input
                     type="text"
                     required
                     value={formData.matricula}
                     onChange={handleMatriculaChange}
-                    className="flex-1 bg-slate-700 border border-slate-600 rounded-xl p-3 text-white uppercase font-mono"
+                    className="w-full bg-slate-700 border-2 border-slate-600 rounded-xl p-4 text-white uppercase font-mono text-2xl tracking-wider text-center focus:border-amber-500 focus:outline-none transition"
                     placeholder="ABC 1234"
                     autoComplete="off"
+                    maxLength={9}
                   />
-                  <button 
-                    type="button" 
-                    onClick={abrirCamaraOCR} 
-                    disabled={ocrProcesando}
-                    className="px-4 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition disabled:opacity-50"
-                  >
-                    <Camera className="w-5 h-5" />
-                  </button>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs bg-slate-800 px-2 py-1 rounded">
+                    {formData.matricula.replace(/\s/g, '').length}/7
+                  </div>
                 </div>
-                
-                {ocrProcesando && (
-                  <div className="mt-2 flex items-center gap-2 text-amber-400 text-xs">
-                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-amber-500"></div>
-                    Procesando imagen...
-                  </div>
-                )}
-                
-                {buscandoDoctor && (
-                  <div className="mt-2 flex items-center gap-2 text-amber-400 text-xs">
-                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-amber-500"></div>
-                    Buscando médico...
-                  </div>
-                )}
-                
-                {doctorEncontrado && (
-                  <div className="mt-2 p-2 bg-green-500/20 border border-green-500/30 rounded-lg text-green-400 text-xs">
-                    ✅ Médico encontrado: {doctorEncontrado.nombre}
-                  </div>
-                )}
-                
-                {mostrarAgregarDoctor && formData.matricula.length >= 5 && !buscandoDoctor && !doctorEncontrado && (
-                  <div className="mt-2 p-2 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">
-                    <p className="text-yellow-400 text-xs mb-2">⚠️ Médico no encontrado para la matrícula {formData.matricula}</p>
-                    <button type="button" onClick={() => setMostrarAgregarDoctor(false)} className="w-full py-1.5 bg-yellow-600/50 rounded-lg text-yellow-300 text-xs flex items-center justify-center gap-1">
-                      <UserPlus className="w-3 h-3" /> Agregar nuevo médico
-                    </button>
-                  </div>
-                )}
-                
-                {!mostrarAgregarDoctor && formData.matricula.length >= 5 && !buscandoDoctor && !doctorEncontrado && (
-                  <div className="mt-2 p-2 bg-slate-700/50 rounded-lg">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="Nombre del nuevo médico"
-                        value={nuevoDoctor.nombre}
-                        onChange={(e) => setNuevoDoctor({ ...nuevoDoctor, nombre: e.target.value })}
-                        className="flex-1 bg-slate-800 rounded-lg p-1.5 text-white text-xs"
-                      />
-                      <button type="button" onClick={agregarNuevoDoctor} className="px-3 py-1.5 bg-green-600 rounded-lg text-white text-xs">
-                        Guardar
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <div className="flex flex-wrap justify-between mt-2 gap-2">
+                  <span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-1 rounded">Ej: ABC 1234</span>
+                  <span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-1 rounded">Ej: A 123 BCD</span>
+                  <span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-1 rounded">Ej: AB 123 CD</span>
+                </div>
               </div>
 
+              {/* Estado de búsqueda */}
+              {buscandoDoctor && (
+                <div className="flex items-center gap-2 text-amber-400 text-xs bg-amber-500/10 p-2 rounded-lg">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-amber-500"></div>
+                  Buscando médico...
+                </div>
+              )}
+              
+              {/* Médico encontrado */}
+              {doctorEncontrado && (
+                <div className="p-3 bg-green-500/20 border border-green-500/30 rounded-lg">
+                  <p className="text-green-400 text-sm font-medium">✅ Médico encontrado</p>
+                  <p className="text-white text-sm mt-1">{doctorEncontrado.nombre}</p>
+                </div>
+              )}
+              
+              {/* Opción para agregar médico */}
+              {mostrarAgregarDoctor && formData.matricula.length >= 5 && !buscandoDoctor && !doctorEncontrado && (
+                <div className="p-3 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">
+                  <p className="text-yellow-400 text-xs mb-2">⚠️ Médico no encontrado para la matrícula {formData.matricula}</p>
+                  <button 
+                    type="button" 
+                    onClick={() => setMostrarAgregarDoctor(false)} 
+                    className="w-full py-2 bg-yellow-600/50 hover:bg-yellow-600 rounded-lg text-yellow-300 text-sm flex items-center justify-center gap-2 transition"
+                  >
+                    <UserPlus className="w-4 h-4" /> Agregar nuevo médico
+                  </button>
+                </div>
+              )}
+              
+              {/* Formulario para nuevo médico */}
+              {!mostrarAgregarDoctor && formData.matricula.length >= 5 && !buscandoDoctor && !doctorEncontrado && (
+                <div className="p-3 bg-slate-700/50 rounded-lg space-y-2">
+                  <p className="text-slate-300 text-xs">Nuevo médico:</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Nombre completo"
+                      value={nuevoDoctor.nombre}
+                      onChange={(e) => setNuevoDoctor({ ...nuevoDoctor, nombre: e.target.value })}
+                      className="flex-1 bg-slate-800 rounded-lg p-2 text-white text-sm focus:outline-none focus:border-amber-500 border border-transparent focus:border-amber-500"
+                      autoFocus
+                    />
+                    <button 
+                      type="button" 
+                      onClick={agregarNuevoDoctor} 
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white text-sm font-medium transition"
+                    >
+                      Guardar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Nombre */}
               <div>
                 <label className="block text-sm font-semibold text-white mb-2">Nombre completo</label>
                 <input
@@ -400,11 +368,12 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                   required
                   value={formData.nombre}
                   onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white focus:border-amber-500 focus:outline-none"
                   placeholder="Nombre del médico"
                 />
               </div>
 
+              {/* Sin tarjeta */}
               <div className="flex items-center justify-between p-3 bg-slate-700/50 rounded-xl">
                 <label className="text-white text-sm">Sin tarjeta</label>
                 <input 
@@ -415,12 +384,13 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 />
               </div>
 
+              {/* Motivo y observaciones */}
               {formData.sin_tarjeta && (
                 <div className="space-y-2 p-3 bg-red-500/10 rounded-xl">
                   <select 
                     value={formData.motivo} 
                     onChange={(e) => setFormData({ ...formData, motivo: e.target.value })} 
-                    className="w-full bg-slate-700 rounded-lg p-2 text-white text-sm"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-white text-sm focus:outline-none"
                   >
                     <option>Olvidó</option>
                     <option>Perdió</option>
@@ -431,22 +401,25 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                     rows="2" 
                     value={formData.observaciones} 
                     onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })} 
-                    className="w-full bg-slate-700 rounded-lg p-2 text-white text-sm resize-none"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-white text-sm resize-none focus:outline-none focus:border-amber-500"
                   />
                 </div>
               )}
 
+              {/* Error */}
               {error && (
-                <div className="bg-red-500/10 rounded-xl p-2 text-red-400 text-xs text-center">
+                <div className="bg-red-500/10 rounded-xl p-2 text-red-400 text-xs text-center flex items-center justify-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
                   {error}
                 </div>
               )}
 
+              {/* Botones */}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={handleClose} className="flex-1 py-3 rounded-xl border border-slate-600 text-white">
+                <button type="button" onClick={handleClose} className="flex-1 py-3 rounded-xl border border-slate-600 text-white hover:bg-slate-700 transition">
                   Cancelar
                 </button>
-                <button type="submit" disabled={loading} className={`flex-1 py-3 rounded-xl font-semibold text-white bg-gradient-to-r ${colors.buttonBg} disabled:opacity-50`}>
+                <button type="submit" disabled={loading} className={`flex-1 py-3 rounded-xl font-semibold text-white bg-gradient-to-r ${colors.buttonBg} hover:opacity-90 transition disabled:opacity-50`}>
                   {loading ? "Registrando..." : "Registrar"}
                 </button>
               </div>
