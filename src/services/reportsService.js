@@ -61,7 +61,6 @@ export async function getMedicosSinTarjeta() {
 
 export async function getIngresosPorDia(fechaInicio, fechaFin) {
   try {
-    // Primero, obtener los datos
     let query = supabase.from("history").select("*");
     
     if (fechaInicio && fechaFin) {
@@ -81,86 +80,49 @@ export async function getIngresosPorDia(fechaInicio, fechaFin) {
     if (error) throw error;
     
     if (!data || data.length === 0) {
-      console.log("No hay datos, devolviendo estructura vacía");
       return [];
     }
-    
-    // Mostrar el primer registro para depuración
-    console.log("Primer registro:", data[0]);
-    console.log("Campos disponibles:", Object.keys(data[0]));
-    
-    // Identificar campos disponibles
-    const primerItem = data[0];
-    const campoFecha = primerItem.fecha ? "fecha" : 
-                       primerItem.fecha_registro ? "fecha_registro" :
-                       primerItem.dia ? "dia" : null;
-    
-    const campoMonto = primerItem.monto ? "monto" :
-                       primerItem.pagado ? "pagado" :
-                       primerItem.tarifa ? "tarifa" :
-                       primerItem.precio ? "precio" :
-                       primerItem.total ? "total" : null;
-    
-    const campoTipo = primerItem.tipo ? "tipo" :
-                      primerItem.operacion ? "operacion" : null;
-    
-    console.log("Campos detectados - Fecha:", campoFecha, "Monto:", campoMonto, "Tipo:", campoTipo);
     
     const groupedByDate = {};
     
     data.forEach(item => {
-      // Obtener fecha
-      let fechaKey = campoFecha ? item[campoFecha] : item.fecha || item.fecha_registro;
-      if (fechaKey && typeof fechaKey === "string" && fechaKey.includes("/")) {
+      // Normalizar fecha
+      let fechaKey = item.fecha;
+      if (fechaKey && fechaKey.includes("/")) {
         const [day, month, year] = fechaKey.split("/");
         fechaKey = `${year}-${month}-${day}`;
-      } else if (fechaKey instanceof Date) {
-        fechaKey = fechaKey.toISOString().split("T")[0];
       }
-      
-      if (!fechaKey) return;
       
       if (!groupedByDate[fechaKey]) {
         groupedByDate[fechaKey] = {
           fecha: fechaKey,
-          ingresos: 0,
-          egresos: 0,
-          pendiente: 0
+          ingresos: 0,      // Total de VEHÍCULOS que entraron
+          egresos: 0,       // Total de VEHÍCULOS que salieron
+          pendiente: 0      // Vehículos que siguen adentro
         };
       }
       
-      // Obtener monto (si existe campo de monto)
-      let monto = 0;
-      if (campoMonto) {
-        monto = parseFloat(item[campoMonto]) || 0;
+      // CONTAR 1 por cada entrada (sin importar montos)
+      groupedByDate[fechaKey].ingresos++;
+      
+      // Si tiene hora de salida, contar como egreso
+      if (item.hora_salida && item.hora_salida !== "") {
+        groupedByDate[fechaKey].egresos++;
       } else {
-        // Si no hay campo de monto, contar como 1
-        monto = 1;
-      }
-      
-      // Determinar si es ingreso o egreso
-      const tipo = campoTipo ? item[campoTipo]?.toLowerCase() : "";
-      
-      if (tipo === "egreso" || tipo === "gasto" || tipo === "salida") {
-        groupedByDate[fechaKey].egresos += monto;
-      } else {
-        // Por defecto, es ingreso
-        groupedByDate[fechaKey].ingresos += monto;
-      }
-      
-      // Calcular pendientes (vehículos activos sin salida)
-      if (item.hora_salida === null || item.hora_salida === undefined || item.hora_salida === "") {
+        // Si no tiene hora de salida, está pendiente
         groupedByDate[fechaKey].pendiente++;
       }
     });
     
-    const resultados = Object.values(groupedByDate);
-    console.log("Resultados agrupados:", resultados);
+    // Calcular pendiente real (ingresos - egresos)
+    Object.values(groupedByDate).forEach(dia => {
+      dia.pendiente = dia.ingresos - dia.egresos;
+    });
     
-    return resultados;
+    return Object.values(groupedByDate);
     
   } catch (error) {
-    console.error("Error en getIngresosPorDia:", error);
+    console.error("Error:", error);
     return [];
   }
 }
@@ -174,9 +136,9 @@ export async function getTotalesRango(fechaInicio, fechaFin) {
   let totalPendientes = 0;
   
   datos.forEach(dia => {
-    totalIngresos += dia.ingresos || 0;
-    totalEgresos += dia.egresos || 0;
-    totalPendientes += dia.pendiente || 0;
+    totalIngresos += dia.ingresos;
+    totalEgresos += dia.egresos;
+    totalPendientes += dia.pendiente;
   });
   
   return {
