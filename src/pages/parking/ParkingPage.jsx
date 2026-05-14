@@ -14,6 +14,13 @@ export default function ParkingPage() {
   const [asignando, setAsignando] = useState(false);
   const [activeFilter, setActiveFilter] = useState("todos");
 
+// En ParkingPage.jsx, antes del return, agrega esta línea si no existe:
+const filteredVehicles = activeVehicles.filter(v =>
+  v.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  v.matricula?.toLowerCase().includes(searchTerm.toLowerCase())
+);
+
+
   useEffect(() => {
     loadParking();
     loadActiveVehicles();
@@ -449,11 +456,6 @@ const filteredVehicles = activeVehicles.filter(v =>
   function scrollToCol(colId) { document.getElementById(colId)?.scrollIntoView({ behavior: "smooth" }); }
   function scrollToBottom() { window.scrollTo({ behavior: "smooth", top: document.body.scrollHeight }); }
 
-// En ParkingPage.jsx, antes del return, agrega esta línea si no existe:
-const filteredVehicles = activeVehicles.filter(v =>
-  v.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-  v.matricula?.toLowerCase().includes(searchTerm.toLowerCase())
-);
 
   return (
     <div id="parkingVirtualSection" className="page-section">
