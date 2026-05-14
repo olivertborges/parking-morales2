@@ -10,7 +10,8 @@ import {
   X,
   Save,
   Mail,
-  Lock
+  Lock,
+  UserCircle
 } from "lucide-react";
 import { 
   getUsers, 
@@ -29,6 +30,7 @@ export default function UsersPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [formData, setFormData] = useState({
+    usuario: "",     // 👈 NUEVO: nombre de usuario para login
     nombre: "",
     email: "",
     rol: "Usuario",
@@ -43,6 +45,7 @@ export default function UsersPage() {
   useEffect(() => {
     if (searchTerm) {
       const filtered = users.filter(user =>
+        user.usuario?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.email?.toLowerCase().includes(searchTerm.toLowerCase())
       );
@@ -63,6 +66,7 @@ export default function UsersPage() {
   function openCreateModal() {
     setEditingUser(null);
     setFormData({
+      usuario: "",
       nombre: "",
       email: "",
       rol: "Usuario",
@@ -74,6 +78,7 @@ export default function UsersPage() {
   function openEditModal(user) {
     setEditingUser(user);
     setFormData({
+      usuario: user.usuario || "",
       nombre: user.nombre || "",
       email: user.email || "",
       rol: user.rol || "Usuario",
@@ -86,12 +91,19 @@ export default function UsersPage() {
     e.preventDefault();
     setSaving(true);
 
+    // Validar que el usuario no esté vacío
+    if (!formData.usuario.trim()) {
+      toast.error("❌ El nombre de usuario es obligatorio");
+      setSaving(false);
+      return;
+    }
+
     let result;
     if (editingUser) {
       result = await updateUser(editingUser.id, formData);
     } else {
       if (!formData.password) {
-        alert("La contraseña es obligatoria");
+        toast.error("❌ La contraseña es obligatoria");
         setSaving(false);
         return;
       }
@@ -99,25 +111,26 @@ export default function UsersPage() {
     }
 
     if (result.success) {
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    await addLog(user.nombre || "Anónimo", editingUser ? "EDITAR_USUARIO" : "CREAR_USUARIO", `${formData.nombre} - ${formData.email}`);
-    toast.success(editingUser ? "✅ Usuario actualizado" : "✅ Usuario creado");
-    setShowModal(false);
-    loadUsers();
-  } else {
-    toast.error(`❌ Error: ${result.error}`);
-  }
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      await addLog(user.nombre || "Anónimo", editingUser ? "EDITAR_USUARIO" : "CREAR_USUARIO", `${formData.usuario} - ${formData.nombre}`);
+      toast.success(editingUser ? "✅ Usuario actualizado" : "✅ Usuario creado");
+      setShowModal(false);
+      loadUsers();
+    } else {
+      toast.error(`❌ Error: ${result.error}`);
+    }
 
     setSaving(false);
   }
 
   async function handleDelete(user) {
-    if (confirm(`¿Eliminar al usuario "${user.nombre}"?`)) {
+    if (confirm(`¿Eliminar al usuario "${user.usuario}"?`)) {
       const result = await deleteUser(user.id);
       if (result.success) {
+        toast.success("✅ Usuario eliminado");
         loadUsers();
       } else {
-        alert("Error al eliminar: " + result.error);
+        toast.error("Error al eliminar: " + result.error);
       }
     }
   }
@@ -159,7 +172,7 @@ export default function UsersPage() {
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
         <input
           type="text"
-          placeholder="Buscar por nombre o email..."
+          placeholder="Buscar por usuario, nombre o email..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full md:w-96 bg-slate-800 border border-slate-700 rounded-xl py-2.5 pl-10 pr-4 text-white text-sm focus:border-amber-500 focus:outline-none transition"
@@ -172,7 +185,8 @@ export default function UsersPage() {
           <table className="w-full">
             <thead className="bg-slate-800">
               <tr>
-                <th className="text-left p-4 text-slate-300 font-semibold text-sm">Nombre</th>
+                <th className="text-left p-4 text-slate-300 font-semibold text-sm">Usuario</th>
+                <th className="text-left p-4 text-slate-300 font-semibold text-sm">Nombre completo</th>
                 <th className="text-left p-4 text-slate-300 font-semibold text-sm">Email</th>
                 <th className="text-left p-4 text-slate-300 font-semibold text-sm">Rol</th>
                 <th className="text-left p-4 text-slate-300 font-semibold text-sm">Fecha registro</th>
@@ -182,19 +196,22 @@ export default function UsersPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="5" className="text-center p-8 text-slate-400">
+                  <td colSpan="6" className="text-center p-8 text-slate-400">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-amber-500 mx-auto"></div>
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="text-center p-8 text-slate-400">
+                  <td colSpan="6" className="text-center p-8 text-slate-400">
                     {searchTerm ? "No se encontraron usuarios" : "No hay usuarios registrados"}
                   </td>
                 </tr>
               ) : (
                 filteredUsers.map((user) => (
                   <tr key={user.id} className="border-t border-slate-800 hover:bg-slate-800/50 transition">
+                    <td className="p-4">
+                      <span className="text-white font-mono text-sm">{user.usuario}</span>
+                    </td>
                     <td className="p-4 text-white font-medium">{user.nombre}</td>
                     <td className="p-4 text-slate-300 text-sm">{user.email}</td>
                     <td className="p-4">
@@ -256,6 +273,23 @@ export default function UsersPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
+              {/* NUEVO: Campo USUARIO (username) */}
+              <div>
+                <label className="block text-sm font-semibold text-white mb-1 flex items-center gap-1">
+                  <UserCircle className="w-3 h-3" /> Usuario *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.usuario}
+                  onChange={(e) => setFormData({ ...formData, usuario: e.target.value })}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-xl p-2.5 text-white focus:border-amber-500 focus:outline-none font-mono"
+                  placeholder="ej: juan.perez"
+                  autoComplete="off"
+                />
+                <p className="text-slate-500 text-xs mt-1">Nombre de usuario para iniciar sesión</p>
+              </div>
+
               <div>
                 <label className="block text-sm font-semibold text-white mb-1">Nombre completo *</label>
                 <input
