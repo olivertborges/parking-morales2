@@ -35,55 +35,54 @@ export async function getUserById(id) {
 }
 
 // Crear un nuevo usuario
-export async function createUser(userData) {
+// src/services/usersService.js
+
+// Crear usuario
+export const createUser = async (userData) => {
   try {
     const { data, error } = await supabase
       .from("users")
-      .insert([{
+      .insert({
+        usuario: userData.usuario,  // 👈 NUEVO
         nombre: userData.nombre,
         email: userData.email,
-        rol: userData.rol,
-        password: userData.password, // En producción, debería estar hasheada
-        created_at: new Date().toISOString()
-      }])
+        password: userData.password, // Recuerda hashear en producción
+        rol: userData.rol
+      })
       .select();
-
+    
     if (error) throw error;
-    return { success: true, data: data?.[0] };
+    return { success: true, data: data[0] };
   } catch (error) {
-    console.error("Error creando usuario:", error);
     return { success: false, error: error.message };
   }
-}
+};
 
-// Actualizar un usuario existente
-export async function updateUser(id, userData) {
+// Actualizar usuario
+export const updateUser = async (id, userData) => {
   try {
     const updateData = {
+      usuario: userData.usuario,  // 👈 NUEVO
       nombre: userData.nombre,
       email: userData.email,
-      rol: userData.rol,
-      updated_at: new Date().toISOString()
+      rol: userData.rol
     };
     
-    // Solo actualizar contraseña si se proporcionó una nueva
-    if (userData.password && userData.password.trim() !== "") {
+    if (userData.password) {
       updateData.password = userData.password;
     }
-
-    const { data, error } = await supabase
+    
+    const { error } = await supabase
       .from("users")
       .update(updateData)
-      .eq("id", id)
-      .select();
-
+      .eq("id", id);
+    
     if (error) throw error;
-    return { success: true, data: data?.[0] };
+    return { success: true };
   } catch (error) {
-    console.error("Error actualizando usuario:", error);
     return { success: false, error: error.message };
   }
-}
+};
 
 // Eliminar un usuario
 export async function deleteUser(id) {
