@@ -1493,3 +1493,32 @@
   overflow-y: auto !important;
   border: 1px solid rgba(245, 158, 11, 0.3) !important;
 }
+
+/* En index.css */
+@keyframes neonGlow {
+  0% {
+    box-shadow: 0 0 5px #f59e0b,
+                0 0 10px #f59e0b,
+                0 0 20px #f59e0b,
+                inset 0 0 5px #f59e0b;
+  }
+  50% {
+    box-shadow: 0 0 10px #f59e0b,
+                0 0 20px #f59e0b,
+                0 0 40px #f59e0b,
+                inset 0 0 10px #f59e0b;
+  }
+  100% {
+    box-shadow: 0 0 5px #f59e0b,
+                0 0 10px #f59e0b,
+                0 0 20px #f59e0b,
+                inset 0 0 5px #f59e0b;
+  }
+}
+
+.splash-logo-container {
+  border-radius: 30px;
+  animation: neonGlow 1.5s ease-in-out infinite;
+  background: linear-gradient(135deg, #1e293b, #0f172a);
+  padding: 20px;
+}
