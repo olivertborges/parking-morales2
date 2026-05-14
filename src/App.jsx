@@ -1,5 +1,5 @@
 // src/App.jsx
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import LoginPage from "./pages/auth/LoginPage";
 import DashboardPage from "./pages/dashboard/DashboardPage";
@@ -18,11 +18,32 @@ import { scheduleAutoBackup } from "./services/autoBackupService";
 import ReservasPage from "./pages/reservas/ReservasPage";
 import Backup from './pages/Backup';
 import Restore from './pages/Restore';
+import SplashScreen from "./components/SplashScreen";
 
 function App() {
+  const [showSplash, setShowSplash] = useState(true);
+
   useEffect(() => {
     scheduleAutoBackup();
+    
+    // Verificar si ya mostró el splash antes en esta sesión
+    const hasSeenSplash = sessionStorage.getItem("hasSeenSplash");
+    if (hasSeenSplash) {
+      setShowSplash(false);
+    } else {
+      // Ocultar splash después de 2.5 segundos
+      const timer = setTimeout(() => {
+        sessionStorage.setItem("hasSeenSplash", "true");
+        setShowSplash(false);
+      }, 2500);
+      
+      return () => clearTimeout(timer);
+    }
   }, []);
+
+  if (showSplash) {
+    return <SplashScreen onFinish={() => setShowSplash(false)} />;
+  }
 
   return (
     <BrowserRouter>
@@ -63,7 +84,7 @@ function App() {
             </ProtectedRoute>
           } />
 
-          {/* 👇 AGREGAR BACKUP Y RESTORE AQUÍ - También protegidos para admin */}
+          {/* Backup y Restore - protegidos para admin */}
           <Route path="backup" element={
             <ProtectedRoute adminOnly={true}>
               <Backup />
