@@ -342,7 +342,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
 
   return (
     <>
-      {/* Modal OCR - CORREGIDO */}
+      {/* Modal OCR - CORREGIDO A PANTALLA COMPLETA */}
       {mostrarOCR && (
         <div 
           className="fixed inset-0 z-[100] flex flex-col" 
@@ -362,7 +362,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
             </button>
           </div>
 
-          {/* Video - ocupa todo el espacio disponible */}
+          {/* Video - pantalla completa sin restricciones */}
           <div className="flex-1 relative bg-black overflow-hidden">
             <video 
               ref={videoRef} 
