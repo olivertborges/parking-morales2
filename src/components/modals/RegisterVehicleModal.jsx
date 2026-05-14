@@ -1,6 +1,6 @@
 // src/components/modals/RegisterVehicleModal.jsx
 import { useState, useEffect, useRef } from "react";
-import { X, Clock, Camera, AlertCircle, Sparkles, UserPlus, Search } from "lucide-react";
+import { X, Clock, Camera, UserPlus } from "lucide-react";
 import { registerVehicle } from "../../services/vehicleService";
 import { supabase } from "../../services/supabase";
 import toast from "react-hot-toast";
@@ -25,43 +25,34 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
   const [ocrProcesando, setOcrProcesando] = useState(false);
   const [doctorEncontrado, setDoctorEncontrado] = useState(null);
   const [mostrarAgregarDoctor, setMostrarAgregarDoctor] = useState(false);
-  const [nuevoDoctor, setNuevoDoctor] = useState({ nombre: "", matricula: "", especialidad: "" });
+  const [nuevoDoctor, setNuevoDoctor] = useState({ nombre: "", especialidad: "" });
   
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const ultimaMatriculaBuscada = useRef("");
 
-  // Función para normalizar matrícula
   const normalizarMatricula = (matricula) => {
     if (!matricula) return "";
     return matricula.replace(/\s/g, '').toUpperCase();
   };
 
-  // Función para formatear matrícula en tiempo real
   const formatearMatriculaEnTiempoReal = (texto) => {
     let limpio = texto.toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (limpio.length === 0) return "";
     
-    if (limpio.length <= 3) {
-      return limpio;
-    } else if (limpio.length <= 7 && /^[A-Z]{3}\d+$/.test(limpio)) {
-      return `${limpio.slice(0, 3)} ${limpio.slice(3)}`;
-    } else if (limpio.length <= 7 && /^[A-Z]\d+[A-Z]*$/.test(limpio)) {
-      if (limpio.length <= 4) {
-        return `${limpio.slice(0, 1)} ${limpio.slice(1)}`;
-      } else {
-        return `${limpio.slice(0, 1)} ${limpio.slice(1, 4)} ${limpio.slice(4)}`;
-      }
-    } else if (limpio.length <= 6 && /^[A-Z]{3}\d+$/.test(limpio)) {
-      return `${limpio.slice(0, 3)} ${limpio.slice(3)}`;
-    } else if (limpio.length <= 7 && /^[A-Z]\d{3}\d*$/.test(limpio)) {
-      if (limpio.length <= 4) {
-        return `${limpio.slice(0, 1)} ${limpio.slice(1)}`;
-      } else {
-        return `${limpio.slice(0, 1)} ${limpio.slice(1, 4)} ${limpio.slice(4)}`;
-      }
+    if (limpio.length <= 3) return limpio;
+    if (limpio.length === 6 && /^[A-Z]{3}\d{3}$/.test(limpio)) {
+      return `${limpio.slice(0, 3)} ${limpio.slice(3, 6)}`;
     }
-    
+    if (limpio.length === 7 && /^[A-Z]{3}\d{4}$/.test(limpio)) {
+      return `${limpio.slice(0, 3)} ${limpio.slice(3, 7)}`;
+    }
+    if (limpio.length === 7 && /^[A-Z]\d{3}\d{3}$/.test(limpio)) {
+      return `${limpio.slice(0, 1)} ${limpio.slice(1, 4)} ${limpio.slice(4, 7)}`;
+    }
+    if (limpio.length >= 5 && limpio.length <= 8) {
+      return `${limpio.slice(0, 3)} ${limpio.slice(3)}`;
+    }
     return limpio;
   };
 
@@ -70,32 +61,17 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     setFormData({ ...formData, matricula: formateado });
   };
 
-  // Buscar médico por matrícula
   const buscarDoctorPorMatricula = async (matricula) => {
     if (!matricula || matricula.length < 4) return null;
-    
     const matriculaNormalizada = normalizarMatricula(matricula);
-    
     const { data, error } = await supabase.from("doctors").select("*");
-    
-    if (error) {
-      console.error("Error en búsqueda:", error);
-      return null;
-    }
-    
-    const doctorEncontrado = data?.find(doctor => {
-      const doctorMatricula = normalizarMatricula(doctor.matricula || "");
-      return doctorMatricula === matriculaNormalizada;
-    });
-    
-    return doctorEncontrado || null;
+    if (error) return null;
+    return data?.find(doctor => normalizarMatricula(doctor.matricula || "") === matriculaNormalizada) || null;
   };
 
-  // Efecto para buscar cuando cambia la matrícula
   useEffect(() => {
     const buscar = async () => {
       const matriculaLimpia = normalizarMatricula(formData.matricula);
-      
       if (matriculaLimpia.length < 4) {
         setDoctorEncontrado(null);
         return;
@@ -108,11 +84,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
       
       if (doctor) {
         setDoctorEncontrado(doctor);
-        setFormData(prev => ({
-          ...prev,
-          nombre: doctor.nombre,
-          tipo: doctor.tipo || "Medico"
-        }));
+        setFormData(prev => ({ ...prev, nombre: doctor.nombre }));
         toast.success(`✅ Médico encontrado: ${doctor.nombre}`);
         setMostrarAgregarDoctor(false);
       } else {
@@ -126,7 +98,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     return () => clearTimeout(timeout);
   }, [formData.matricula]);
 
-  // Agregar nuevo médico
   const agregarNuevoDoctor = async () => {
     if (!nuevoDoctor.nombre.trim()) {
       toast.error("Ingrese el nombre del médico");
@@ -141,9 +112,9 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     }]);
     
     if (!error) {
-      toast.success(`✅ Médico ${nuevoDoctor.nombre} agregado correctamente`);
+      toast.success(`✅ Médico ${nuevoDoctor.nombre} agregado`);
       setMostrarAgregarDoctor(false);
-      setNuevoDoctor({ nombre: "", matricula: "", especialidad: "" });
+      setNuevoDoctor({ nombre: "", especialidad: "" });
       setFormData(prev => ({ ...prev, nombre: nuevoDoctor.nombre }));
       setDoctorEncontrado({ nombre: nuevoDoctor.nombre, matricula: formData.matricula });
     } else {
@@ -163,7 +134,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     });
     setDoctorEncontrado(null);
     setMostrarAgregarDoctor(false);
-    setNuevoDoctor({ nombre: "", matricula: "", especialidad: "" });
+    setNuevoDoctor({ nombre: "", especialidad: "" });
     setError("");
     ultimaMatriculaBuscada.current = "";
   };
@@ -174,12 +145,10 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
   };
 
   useEffect(() => {
-    if (open) {
-      resetForm();
-    }
+    if (open) resetForm();
   }, [defaultType, open]);
 
-  // Iniciar cámara OCR
+  // ========== OCR ==========
   const abrirCamaraOCR = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -188,11 +157,10 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        videoRef.current.play();
       }
       setMostrarOCR(true);
     } catch (err) {
-      console.error("Error al abrir cámara:", err);
       toast.error("Error al acceder a la cámara: " + err.message);
     }
   };
@@ -210,71 +178,37 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     
     setOcrProcesando(true);
     
+    const canvas = document.createElement("canvas");
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    const context = canvas.getContext("2d");
+    context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    
     try {
-      const canvas = document.createElement("canvas");
-      const video = videoRef.current;
-      
-      if (video.videoWidth === 0 || video.videoHeight === 0) {
-        throw new Error("La cámara no está lista");
-      }
-      
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const context = canvas.getContext("2d");
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      const imageData = canvas.toDataURL("image/jpeg", 0.8);
-      
       const { data: { text } } = await Tesseract.recognize(
-        imageData,
+        canvas.toDataURL("image/jpeg"),
         'spa',
-        {
-          logger: (m) => {
-            if (m.status === 'recognizing text') {
-              console.log(`Progreso OCR: ${Math.round(m.progress * 100)}%`);
-            }
-          }
-        }
+        { logger: (m) => console.log(m) }
       );
       
-      console.log("Texto detectado OCR:", text);
+      const matriculaDetectada = formatearMatriculaEnTiempoReal(text);
       
-      let matriculaLimpia = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
-      let matriculaFormateada = matriculaLimpia;
-      
-      if (matriculaLimpia.length === 6 && /^[A-Z]{3}\d{3}$/.test(matriculaLimpia)) {
-        matriculaFormateada = `${matriculaLimpia.slice(0, 3)} ${matriculaLimpia.slice(3, 6)}`;
-      } else if (matriculaLimpia.length === 7 && /^[A-Z]{3}\d{4}$/.test(matriculaLimpia)) {
-        matriculaFormateada = `${matriculaLimpia.slice(0, 3)} ${matriculaLimpia.slice(3, 7)}`;
-      } else if (matriculaLimpia.length === 7 && /^[A-Z]\d{3}\d{3}$/.test(matriculaLimpia)) {
-        matriculaFormateada = `${matriculaLimpia.slice(0, 1)} ${matriculaLimpia.slice(1, 4)} ${matriculaLimpia.slice(4, 7)}`;
-      } else if (matriculaLimpia.length >= 5 && matriculaLimpia.length <= 8) {
-        if (matriculaLimpia.length <= 4) {
-          matriculaFormateada = matriculaLimpia;
-        } else if (matriculaLimpia.length <= 6) {
-          matriculaFormateada = `${matriculaLimpia.slice(0, 3)} ${matriculaLimpia.slice(3)}`;
-        } else {
-          matriculaFormateada = `${matriculaLimpia.slice(0, 3)} ${matriculaLimpia.slice(3, 6)} ${matriculaLimpia.slice(6)}`;
-        }
-      }
-      
-      if (matriculaFormateada && matriculaFormateada.replace(/\s/g, '').length >= 5) {
-        setFormData(prev => ({ ...prev, matricula: matriculaFormateada }));
-        toast.success(`Matrícula detectada: ${matriculaFormateada}`);
+      if (matriculaDetectada && matriculaDetectada.length >= 5) {
+        setFormData(prev => ({ ...prev, matricula: matriculaDetectada }));
+        toast.success(`Matrícula detectada: ${matriculaDetectada}`);
         
-        const doctor = await buscarDoctorPorMatricula(matriculaFormateada);
+        const doctor = await buscarDoctorPorMatricula(matriculaDetectada);
         if (doctor) {
-          setFormData(prev => ({ ...prev, nombre: doctor.nombre, tipo: doctor.tipo || "Medico" }));
+          setFormData(prev => ({ ...prev, nombre: doctor.nombre }));
           toast.success(`✅ Médico encontrado: ${doctor.nombre}`);
         }
       } else {
-        toast.error("No se pudo detectar la matrícula. Intente nuevamente con mejor luz.");
+        toast.error("No se pudo detectar la matrícula");
       }
       
       cerrarCamaraOCR();
     } catch (err) {
-      console.error("Error en OCR:", err);
-      toast.error("Error procesando la imagen: " + err.message);
+      toast.error("Error procesando imagen");
     } finally {
       setOcrProcesando(false);
     }
@@ -282,10 +216,10 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
 
   const getColors = () => {
     const tipo = formData.tipo;
-    if (tipo === "Medico") return { bg: "from-blue-500 to-blue-600", border: "border-blue-500/30", buttonBg: "from-blue-500 to-blue-600" };
-    if (tipo === "Junta") return { bg: "from-purple-500 to-purple-600", border: "border-purple-500/30", buttonBg: "from-purple-500 to-purple-600" };
-    if (tipo === "Reserva") return { bg: "from-green-500 to-green-600", border: "border-green-500/30", buttonBg: "from-green-500 to-green-600" };
-    return { bg: "from-amber-500 to-orange-600", border: "border-amber-500/30", buttonBg: "from-amber-500 to-orange-600" };
+    if (tipo === "Medico") return { bg: "from-blue-500 to-blue-600", buttonBg: "from-blue-500 to-blue-600" };
+    if (tipo === "Junta") return { bg: "from-purple-500 to-purple-600", buttonBg: "from-purple-500 to-purple-600" };
+    if (tipo === "Reserva") return { bg: "from-green-500 to-green-600", buttonBg: "from-green-500 to-green-600" };
+    return { bg: "from-amber-500 to-orange-600", buttonBg: "from-amber-500 to-orange-600" };
   };
 
   const colors = getColors();
@@ -321,7 +255,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       await addLog(user.nombre || "Anónimo", "REGISTRO_INGRESO", `${formData.nombre} - ${formData.matricula}`);
       
-      toast.success(`✅ Vehículo ${formData.nombre} registrado correctamente`);
+      toast.success(`✅ Vehículo registrado correctamente`);
       handleClose();
       if (onSuccess) onSuccess();
     } else {
@@ -342,88 +276,54 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
 
   return (
     <>
-      {/* Modal OCR - CORREGIDO A PANTALLA COMPLETA */}
+      {/* MODAL OCR - VERSIÓN SIMPLE QUE SÍ FUNCIONA */}
       {mostrarOCR && (
-        <div 
-          className="fixed inset-0 z-[100] flex flex-col" 
-          style={{ backgroundColor: 'black' }}
-        >
-          {/* Header */}
-          <div className="flex justify-between items-center p-4 bg-black/80 z-10">
-            <h3 className="text-white font-bold flex items-center gap-2">
-              <Camera className="w-5 h-5 text-amber-400" />
-              Escanear matrícula
-            </h3>
-            <button 
-              onClick={cerrarCamaraOCR} 
-              className="text-white p-2 hover:bg-white/20 rounded-full transition"
-            >
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+          <div className="flex justify-between items-center p-4 bg-black border-b border-gray-800">
+            <h3 className="text-white font-bold text-lg">Escanear matrícula</h3>
+            <button onClick={cerrarCamaraOCR} className="text-white p-2">
               <X className="w-6 h-6" />
             </button>
           </div>
-
-          {/* Video - pantalla completa sin restricciones */}
-          <div className="flex-1 relative bg-black overflow-hidden">
+          
+          <div className="flex-1 relative bg-black">
             <video 
               ref={videoRef} 
               autoPlay 
               playsInline 
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{ transform: 'scaleX(-1)' }}
+              className="w-full h-full object-cover"
             />
-            
-            {/* Guía para encuadrar */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-4/5 h-1/4 border-2 border-amber-400 rounded-lg">
-                <p className="text-amber-400 text-xs text-center mt-2 bg-black/60 inline-block px-2 rounded mx-auto block w-fit">
-                  Centra la matrícula aquí
-                </p>
+              <div className="w-64 h-20 border-2 border-amber-400 rounded-lg">
+                <p className="text-amber-400 text-xs text-center mt-2">Centra la matrícula</p>
               </div>
             </div>
           </div>
-
-          {/* Botones */}
-          <div className="p-4 flex gap-3 bg-black/80 z-10">
-            <button 
-              onClick={cerrarCamaraOCR} 
-              className="flex-1 py-3 bg-red-600 rounded-xl text-white font-semibold hover:bg-red-700 transition"
-            >
+          
+          <div className="p-4 flex gap-3 bg-black">
+            <button onClick={cerrarCamaraOCR} className="flex-1 py-3 bg-red-600 rounded-xl text-white font-semibold">
               Cancelar
             </button>
-            <button 
-              onClick={capturarYLeer} 
-              disabled={ocrProcesando}
-              className="flex-1 py-3 bg-amber-500 rounded-xl text-white font-semibold hover:bg-amber-600 transition disabled:opacity-50"
-            >
+            <button onClick={capturarYLeer} disabled={ocrProcesando} className="flex-1 py-3 bg-amber-500 rounded-xl text-white font-semibold disabled:opacity-50">
               {ocrProcesando ? "Procesando..." : "Capturar"}
             </button>
           </div>
-
-          {/* Overlay de procesamiento */}
+          
           {ocrProcesando && (
             <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[110]">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"></div>
-                <p className="text-white">Procesando imagen con OCR...</p>
+                <p className="text-white">Procesando imagen...</p>
               </div>
             </div>
           )}
         </div>
       )}
 
-      {/* Modal principal */}
+      {/* MODAL PRINCIPAL */}
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.85)',
-          backdropFilter: 'blur(10px)'
-        }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="bg-slate-800 rounded-2xl max-w-md w-full border border-amber-500/30 shadow-2xl max-h-[90vh] overflow-y-auto">
-            {/* Header */}
             <div className={`rounded-t-2xl bg-gradient-to-r ${colors.bg} p-5 sticky top-0 z-10`}>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
@@ -442,7 +342,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
             </div>
 
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
-              {/* Hora */}
               <div className="bg-slate-700/50 rounded-xl p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -456,24 +355,19 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                       onChange={(e) => setFormData({ ...formData, hora_entrada: e.target.value })} 
                       className="bg-slate-800 rounded-lg p-1.5 text-white text-sm border border-slate-600 focus:border-amber-500 outline-none" 
                     />
-                    <button 
-                      type="button" 
-                      onClick={setCurrentTime} 
-                      className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded-lg hover:bg-amber-500/30 transition"
-                    >
+                    <button type="button" onClick={setCurrentTime} className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded-lg">
                       Ahora
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* Tipo */}
               <div>
                 <label className="block text-sm font-semibold text-white mb-2">Tipo</label>
                 <select 
                   value={formData.tipo} 
                   onChange={(e) => setFormData({ ...formData, tipo: e.target.value })} 
-                  className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white focus:border-amber-500 focus:outline-none"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white"
                 >
                   <option value="Medico">👨‍⚕️ Médico</option>
                   <option value="Junta">🏛️ Junta Directiva</option>
@@ -481,7 +375,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 </select>
               </div>
 
-              {/* Matrícula */}
               <div>
                 <label className="block text-sm font-semibold text-white mb-2">Matrícula</label>
                 <div className="flex gap-2">
@@ -490,16 +383,11 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                     required
                     value={formData.matricula}
                     onChange={handleMatriculaChange}
-                    className="flex-1 bg-slate-700 border border-slate-600 rounded-xl p-3 text-white uppercase font-mono tracking-wide focus:border-amber-500 focus:outline-none"
-                    placeholder="ABC 1234 / A 123 BCD"
+                    className="flex-1 bg-slate-700 border border-slate-600 rounded-xl p-3 text-white uppercase font-mono"
+                    placeholder="ABC 1234"
                     autoComplete="off"
                   />
-                  <button 
-                    type="button" 
-                    onClick={abrirCamaraOCR} 
-                    className="px-4 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition"
-                    title="Escanear matrícula"
-                  >
+                  <button type="button" onClick={abrirCamaraOCR} className="px-4 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500/30">
                     <Camera className="w-5 h-5" />
                   </button>
                 </div>
@@ -512,19 +400,15 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 )}
                 
                 {doctorEncontrado && (
-                  <div className="mt-2 p-2 bg-green-500/20 border border-green-500/30 rounded-lg text-green-400 text-xs flex items-center justify-between">
-                    <span>✅ Médico encontrado: {doctorEncontrado.nombre}</span>
+                  <div className="mt-2 p-2 bg-green-500/20 border border-green-500/30 rounded-lg text-green-400 text-xs">
+                    ✅ Médico encontrado: {doctorEncontrado.nombre}
                   </div>
                 )}
                 
                 {mostrarAgregarDoctor && formData.matricula.length >= 5 && !buscandoDoctor && !doctorEncontrado && (
                   <div className="mt-2 p-2 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">
-                    <p className="text-yellow-400 text-xs mb-2">⚠️ Médico no encontrado para la matrícula {formData.matricula}</p>
-                    <button
-                      type="button"
-                      onClick={() => setMostrarAgregarDoctor(false)}
-                      className="w-full py-1.5 bg-yellow-600/50 hover:bg-yellow-600 rounded-lg text-yellow-300 text-xs flex items-center justify-center gap-1 transition"
-                    >
+                    <p className="text-yellow-400 text-xs mb-2">⚠️ Médico no encontrado</p>
+                    <button type="button" onClick={() => setMostrarAgregarDoctor(false)} className="w-full py-1.5 bg-yellow-600/50 rounded-lg text-yellow-300 text-xs flex items-center justify-center gap-1">
                       <UserPlus className="w-3 h-3" /> Agregar nuevo médico
                     </button>
                   </div>
@@ -538,13 +422,9 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                         placeholder="Nombre del nuevo médico"
                         value={nuevoDoctor.nombre}
                         onChange={(e) => setNuevoDoctor({ ...nuevoDoctor, nombre: e.target.value })}
-                        className="flex-1 bg-slate-800 rounded-lg p-1.5 text-white text-xs focus:outline-none focus:border-amber-500"
+                        className="flex-1 bg-slate-800 rounded-lg p-1.5 text-white text-xs"
                       />
-                      <button
-                        type="button"
-                        onClick={agregarNuevoDoctor}
-                        className="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded-lg text-white text-xs transition"
-                      >
+                      <button type="button" onClick={agregarNuevoDoctor} className="px-3 py-1.5 bg-green-600 rounded-lg text-white text-xs">
                         Guardar
                       </button>
                     </div>
@@ -552,7 +432,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 )}
               </div>
 
-              {/* Nombre */}
               <div>
                 <label className="block text-sm font-semibold text-white mb-2">Nombre completo</label>
                 <input
@@ -560,12 +439,11 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                   required
                   value={formData.nombre}
                   onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white focus:border-amber-500 focus:outline-none"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white"
                   placeholder="Nombre del médico"
                 />
               </div>
 
-              {/* Sin tarjeta */}
               <div className="flex items-center justify-between p-3 bg-slate-700/50 rounded-xl">
                 <label className="text-white text-sm">Sin tarjeta</label>
                 <input 
@@ -581,7 +459,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                   <select 
                     value={formData.motivo} 
                     onChange={(e) => setFormData({ ...formData, motivo: e.target.value })} 
-                    className="w-full bg-slate-700 rounded-lg p-2 text-white text-sm focus:outline-none"
+                    className="w-full bg-slate-700 rounded-lg p-2 text-white text-sm"
                   >
                     <option>Olvidó</option>
                     <option>Perdió</option>
@@ -592,7 +470,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                     rows="2" 
                     value={formData.observaciones} 
                     onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })} 
-                    className="w-full bg-slate-700 rounded-lg p-2 text-white text-sm resize-none focus:outline-none focus:border-amber-500"
+                    className="w-full bg-slate-700 rounded-lg p-2 text-white text-sm resize-none"
                   />
                 </div>
               )}
@@ -604,18 +482,10 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
               )}
 
               <div className="flex gap-3 pt-2">
-                <button 
-                  type="button" 
-                  onClick={handleClose} 
-                  className="flex-1 py-3 rounded-xl border border-slate-600 text-white hover:bg-slate-700 transition"
-                >
+                <button type="button" onClick={handleClose} className="flex-1 py-3 rounded-xl border border-slate-600 text-white">
                   Cancelar
                 </button>
-                <button 
-                  type="submit" 
-                  disabled={loading} 
-                  className={`flex-1 py-3 rounded-xl font-semibold text-white bg-gradient-to-r ${colors.buttonBg} hover:opacity-90 transition disabled:opacity-50`}
-                >
+                <button type="submit" disabled={loading} className={`flex-1 py-3 rounded-xl font-semibold text-white bg-gradient-to-r ${colors.buttonBg} disabled:opacity-50`}>
                   {loading ? "Registrando..." : "Registrar"}
                 </button>
               </div>
