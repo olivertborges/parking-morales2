@@ -21,14 +21,11 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [buscandoDoctor, setBuscandoDoctor] = useState(false);
-  const [mostrarOCR, setMostrarOCR] = useState(false);
   const [ocrProcesando, setOcrProcesando] = useState(false);
   const [doctorEncontrado, setDoctorEncontrado] = useState(null);
   const [mostrarAgregarDoctor, setMostrarAgregarDoctor] = useState(false);
   const [nuevoDoctor, setNuevoDoctor] = useState({ nombre: "", especialidad: "" });
   
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
   const ultimaMatriculaBuscada = useRef("");
 
   const normalizarMatricula = (matricula) => {
@@ -148,121 +145,58 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     if (open) resetForm();
   }, [defaultType, open]);
 
-  // ========== OCR ==========
-  const abrirCamaraOCR = async () => {
-  console.log("Intentando abrir cámara...");
-  
-  // Verificar si el navegador soporta getUserMedia
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    toast.error("Tu navegador no soporta la cámara");
-    return;
-  }
-  
-  try {
-    // Primero pedir permisos explícitamente
-    const permissionStatus = await navigator.permissions.query({ name: 'camera' });
-    console.log("Estado del permiso:", permissionStatus.state);
+  // ========== OCR con INPUT FILE (funciona en iOS y Android) ==========
+  const abrirCamaraOCR = () => {
+    // Crear input file para capturar imagen
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment';
     
-    if (permissionStatus.state === 'denied') {
-      toast.error("Permiso de cámara denegado. Habilítalo en la configuración del navegador");
-      return;
-    }
-    
-    // Solicitar cámara con opciones específicas
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: "environment",
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      }
-    });
-    
-    console.log("Cámara obtenida:", stream.getVideoTracks()[0].getSettings());
-    
-    streamRef.current = stream;
-    
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.onloadedmetadata = () => {
-        console.log("Video cargado correctamente");
-        videoRef.current.play().catch(e => console.error("Error al reproducir:", e));
-        setMostrarOCR(true);
-      };
-      videoRef.current.onerror = (e) => {
-        console.error("Error en video:", e);
-        toast.error("Error al cargar el video");
-      };
-    }
-  } catch (err) {
-    console.error("Error detallado:", err);
-    
-    // Mensaje de error más específico
-    if (err.name === 'NotAllowedError') {
-      toast.error("Permiso denegado. Habilita la cámara en la configuración del navegador");
-    } else if (err.name === 'NotFoundError') {
-      toast.error("No se encontró ninguna cámara en tu dispositivo");
-    } else if (err.name === 'NotReadableError') {
-      toast.error("La cámara está siendo usada por otra aplicación");
-    } else {
-      toast.error("Error al acceder a la cámara: " + err.message);
-    }
-  }
-};
-
-  const cerrarCamaraOCR = () => {
-  console.log("Cerrando cámara...");
-  if (streamRef.current) {
-    streamRef.current.getTracks().forEach(track => {
-      track.stop();
-      console.log("Track detenido");
-    });
-    streamRef.current = null;
-  }
-  if (videoRef.current) {
-    videoRef.current.srcObject = null;
-  }
-  setMostrarOCR(false);
-};
-
-  const capturarYLeer = async () => {
-    if (!videoRef.current) return;
-    
-    setOcrProcesando(true);
-    
-    const canvas = document.createElement("canvas");
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    const context = canvas.getContext("2d");
-    context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-    
-    try {
-      const { data: { text } } = await Tesseract.recognize(
-        canvas.toDataURL("image/jpeg"),
-        'spa',
-        { logger: (m) => console.log(m) }
-      );
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
       
-      const matriculaDetectada = formatearMatriculaEnTiempoReal(text);
+      setOcrProcesando(true);
       
-      if (matriculaDetectada && matriculaDetectada.length >= 5) {
-        setFormData(prev => ({ ...prev, matricula: matriculaDetectada }));
-        toast.success(`Matrícula detectada: ${matriculaDetectada}`);
-        
-        const doctor = await buscarDoctorPorMatricula(matriculaDetectada);
-        if (doctor) {
-          setFormData(prev => ({ ...prev, nombre: doctor.nombre }));
-          toast.success(`✅ Médico encontrado: ${doctor.nombre}`);
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          toast.loading("Procesando imagen...", { id: "ocr" });
+          
+          const { data: { text } } = await Tesseract.recognize(
+            event.target.result,
+            'spa',
+            { logger: (m) => console.log(m) }
+          );
+          
+          console.log("Texto detectado:", text);
+          
+          const matriculaDetectada = formatearMatriculaEnTiempoReal(text);
+          
+          if (matriculaDetectada && matriculaDetectada.replace(/\s/g, '').length >= 5) {
+            setFormData(prev => ({ ...prev, matricula: matriculaDetectada }));
+            toast.success(`Matrícula detectada: ${matriculaDetectada}`, { id: "ocr" });
+            
+            const doctor = await buscarDoctorPorMatricula(matriculaDetectada);
+            if (doctor) {
+              setFormData(prev => ({ ...prev, nombre: doctor.nombre }));
+              toast.success(`✅ Médico encontrado: ${doctor.nombre}`);
+            }
+          } else {
+            toast.error("No se pudo detectar la matrícula. Intente con mejor luz.", { id: "ocr" });
+          }
+        } catch (err) {
+          console.error("Error OCR:", err);
+          toast.error("Error procesando la imagen", { id: "ocr" });
+        } finally {
+          setOcrProcesando(false);
         }
-      } else {
-        toast.error("No se pudo detectar la matrícula");
-      }
-      
-      cerrarCamaraOCR();
-    } catch (err) {
-      toast.error("Error procesando imagen");
-    } finally {
-      setOcrProcesando(false);
-    }
+      };
+      reader.readAsDataURL(file);
+    };
+    
+    input.click();
   };
 
   const getColors = () => {
@@ -327,52 +261,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
 
   return (
     <>
-      {/* MODAL OCR - VERSIÓN SIMPLE QUE SÍ FUNCIONA */}
-      {/* MODAL OCR */}
-{mostrarOCR && (
-  <div className="fixed inset-0 z-[100] bg-black flex flex-col">
-    <div className="flex justify-between items-center p-4 bg-black border-b border-gray-800">
-      <h3 className="text-white font-bold text-lg">Escanear matrícula</h3>
-      <button onClick={cerrarCamaraOCR} className="text-white p-2">
-        <X className="w-6 h-6" />
-      </button>
-    </div>
-    
-    <div className="flex-1 relative bg-black">
-      <video 
-        ref={videoRef} 
-        autoPlay 
-        playsInline 
-        muted
-        className="w-full h-full object-cover"
-      />
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="w-64 h-20 border-2 border-amber-400 rounded-lg">
-          <p className="text-amber-400 text-xs text-center mt-2">Centra la matrícula</p>
-        </div>
-      </div>
-    </div>
-    
-    <div className="p-4 flex gap-3 bg-black">
-      <button onClick={cerrarCamaraOCR} className="flex-1 py-3 bg-red-600 rounded-xl text-white font-semibold">
-        Cancelar
-      </button>
-      <button onClick={capturarYLeer} disabled={ocrProcesando} className="flex-1 py-3 bg-amber-500 rounded-xl text-white font-semibold disabled:opacity-50">
-        {ocrProcesando ? "Procesando..." : "Capturar"}
-      </button>
-    </div>
-    
-    {ocrProcesando && (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[110]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"></div>
-          <p className="text-white">Procesando imagen...</p>
-        </div>
-      </div>
-    )}
-  </div>
-)}
-
       {/* MODAL PRINCIPAL */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
@@ -440,10 +328,22 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                     placeholder="ABC 1234"
                     autoComplete="off"
                   />
-                  <button type="button" onClick={abrirCamaraOCR} className="px-4 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500/30">
+                  <button 
+                    type="button" 
+                    onClick={abrirCamaraOCR} 
+                    disabled={ocrProcesando}
+                    className="px-4 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition disabled:opacity-50"
+                  >
                     <Camera className="w-5 h-5" />
                   </button>
                 </div>
+                
+                {ocrProcesando && (
+                  <div className="mt-2 flex items-center gap-2 text-amber-400 text-xs">
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-amber-500"></div>
+                    Procesando imagen con OCR...
+                  </div>
+                )}
                 
                 {buscandoDoctor && (
                   <div className="mt-2 flex items-center gap-2 text-amber-400 text-xs">
@@ -460,7 +360,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 
                 {mostrarAgregarDoctor && formData.matricula.length >= 5 && !buscandoDoctor && !doctorEncontrado && (
                   <div className="mt-2 p-2 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">
-                    <p className="text-yellow-400 text-xs mb-2">⚠️ Médico no encontrado</p>
+                    <p className="text-yellow-400 text-xs mb-2">⚠️ Médico no encontrado para la matrícula {formData.matricula}</p>
                     <button type="button" onClick={() => setMostrarAgregarDoctor(false)} className="w-full py-1.5 bg-yellow-600/50 rounded-lg text-yellow-300 text-xs flex items-center justify-center gap-1">
                       <UserPlus className="w-3 h-3" /> Agregar nuevo médico
                     </button>
