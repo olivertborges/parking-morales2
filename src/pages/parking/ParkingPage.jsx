@@ -544,8 +544,8 @@ function actualizarStats(spotsData) {
 
       {/* MODAL */}
       {showModal && selectedSpot && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-2xl max-w-md w-full border border-amber-500/30">
+       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.8)' }}>
+    <div className="bg-slate-800 rounded-2xl max-w-md w-full border border-amber-500/30 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className={`rounded-t-2xl p-5 ${selectedSpot.activo ? 'bg-gradient-to-r from-red-600 to-red-700' : 'bg-gradient-to-r from-amber-500 to-orange-600'}`}>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
