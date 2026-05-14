@@ -26,34 +26,27 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
   
   const ultimaMatriculaBuscada = useRef("");
 
-  // Normalizar matrícula (sin espacios, mayúsculas)
   const normalizarMatricula = (matricula) => {
     if (!matricula) return "";
     return matricula.replace(/\s/g, '').toUpperCase();
   };
 
-  // Formatear matrícula en tiempo real (soporta múltiples formatos)
   const formatearMatriculaEnTiempoReal = (texto) => {
     let limpio = texto.toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (limpio.length === 0) return "";
     
-    // Formato 1: ABC 123 (3 letras + 3 números)
     if (limpio.length === 6 && /^[A-Z]{3}\d{3}$/.test(limpio)) {
       return `${limpio.slice(0, 3)} ${limpio.slice(3, 6)}`;
     }
-    // Formato 2: ABC 1234 (3 letras + 4 números)
     if (limpio.length === 7 && /^[A-Z]{3}\d{4}$/.test(limpio)) {
       return `${limpio.slice(0, 3)} ${limpio.slice(3, 7)}`;
     }
-    // Formato 3: A 123 BCD (1 letra + 3 números + 3 letras)
     if (limpio.length === 7 && /^[A-Z]\d{3}[A-Z]{3}$/.test(limpio)) {
       return `${limpio.slice(0, 1)} ${limpio.slice(1, 4)} ${limpio.slice(4, 7)}`;
     }
-    // Formato 4: AB 123 CD (2 letras + 3 números + 2 letras)
     if (limpio.length === 7 && /^[A-Z]{2}\d{3}[A-Z]{2}$/.test(limpio)) {
       return `${limpio.slice(0, 2)} ${limpio.slice(2, 5)} ${limpio.slice(5, 7)}`;
     }
-    // Durante la escritura: mostrar con espacio después de 3 caracteres
     if (limpio.length > 3 && limpio.length <= 6) {
       return `${limpio.slice(0, 3)} ${limpio.slice(3)}`;
     }
@@ -67,9 +60,10 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
   const handleMatriculaChange = (e) => {
     const formateado = formatearMatriculaEnTiempoReal(e.target.value);
     setFormData({ ...formData, matricula: formateado });
+    setDoctorEncontrado(null);
+    setMostrarAgregarDoctor(false);
   };
 
-  // Buscar médico por matrícula
   const buscarDoctorPorMatricula = async (matricula) => {
     if (!matricula || matricula.length < 4) return null;
     const matriculaNormalizada = normalizarMatricula(matricula);
@@ -78,12 +72,12 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     return data?.find(doctor => normalizarMatricula(doctor.matricula || "") === matriculaNormalizada) || null;
   };
 
-  // Efecto para buscar médico automáticamente al escribir la matrícula
   useEffect(() => {
     const buscar = async () => {
       const matriculaLimpia = normalizarMatricula(formData.matricula);
       if (matriculaLimpia.length < 4) {
         setDoctorEncontrado(null);
+        setMostrarAgregarDoctor(false);
         return;
       }
       if (ultimaMatriculaBuscada.current === matriculaLimpia) return;
@@ -108,28 +102,29 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     return () => clearTimeout(timeout);
   }, [formData.matricula]);
 
-  // Agregar nuevo médico
   const agregarNuevoDoctor = async () => {
     if (!nuevoDoctor.nombre.trim()) {
       toast.error("Ingrese el nombre del médico");
       return;
     }
     
+    const matriculaNormalizada = normalizarMatricula(formData.matricula);
+    
     const { error } = await supabase.from("doctors").insert([{
       nombre: nuevoDoctor.nombre,
-      matricula: normalizarMatricula(formData.matricula),
+      matricula: matriculaNormalizada,
       tipo: formData.tipo,
       especialidad: nuevoDoctor.especialidad || null
     }]);
     
     if (!error) {
-      toast.success(`✅ Médico ${nuevoDoctor.nombre} agregado`);
+      toast.success(`✅ Médico ${nuevoDoctor.nombre} agregado correctamente`);
       setMostrarAgregarDoctor(false);
-      setNuevoDoctor({ nombre: "", especialidad: "" });
+      setDoctorEncontrado({ nombre: nuevoDoctor.nombre, matricula: matriculaNormalizada });
       setFormData(prev => ({ ...prev, nombre: nuevoDoctor.nombre }));
-      setDoctorEncontrado({ nombre: nuevoDoctor.nombre, matricula: formData.matricula });
+      setNuevoDoctor({ nombre: "", especialidad: "" });
     } else {
-      toast.error("Error al agregar médico");
+      toast.error("Error al agregar médico: " + error.message);
     }
   };
 
@@ -221,7 +216,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
 
   return (
     <>
-      {/* MODAL PRINCIPAL */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="bg-slate-800 rounded-2xl max-w-md w-full border border-amber-500/30 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -243,7 +237,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
             </div>
 
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
-              {/* Hora de entrada */}
               <div className="bg-slate-700/50 rounded-xl p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -264,7 +257,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 </div>
               </div>
 
-              {/* Tipo */}
               <div>
                 <label className="block text-sm font-semibold text-white mb-2">Tipo</label>
                 <select 
@@ -278,35 +270,31 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 </select>
               </div>
 
-              {/* Matrícula - Campo mejorado sin OCR */}
               <div>
                 <label className="block text-sm font-semibold text-white mb-2 flex items-center gap-2">
                   <KeyRound className="w-4 h-4 text-amber-400" />
                   Matrícula
                 </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    required
-                    value={formData.matricula}
-                    onChange={handleMatriculaChange}
-                    className="w-full bg-slate-700 border-2 border-slate-600 rounded-xl p-4 text-white uppercase font-mono text-2xl tracking-wider text-center focus:border-amber-500 focus:outline-none transition"
-                    placeholder="ABC 1234"
-                    autoComplete="off"
-                    maxLength={9}
-                  />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs bg-slate-800 px-2 py-1 rounded">
-                    {formData.matricula.replace(/\s/g, '').length}/7
-                  </div>
-                </div>
+                <input
+                  type="text"
+                  required
+                  value={formData.matricula}
+                  onChange={handleMatriculaChange}
+                  className="w-full bg-slate-700 border-2 border-slate-600 rounded-xl p-4 text-white uppercase font-mono text-2xl tracking-wider text-center focus:border-amber-500 focus:outline-none transition"
+                  placeholder="ABC 1234"
+                  autoComplete="off"
+                  maxLength={9}
+                />
                 <div className="flex flex-wrap justify-between mt-2 gap-2">
                   <span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-1 rounded">Ej: ABC 1234</span>
                   <span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-1 rounded">Ej: A 123 BCD</span>
                   <span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-1 rounded">Ej: AB 123 CD</span>
                 </div>
+                <p className="text-slate-500 text-xs mt-2">
+                  {formData.matricula.replace(/\s/g, '').length}/7 caracteres
+                </p>
               </div>
 
-              {/* Estado de búsqueda */}
               {buscandoDoctor && (
                 <div className="flex items-center gap-2 text-amber-400 text-xs bg-amber-500/10 p-2 rounded-lg">
                   <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-amber-500"></div>
@@ -314,7 +302,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 </div>
               )}
               
-              {/* Médico encontrado */}
               {doctorEncontrado && (
                 <div className="p-3 bg-green-500/20 border border-green-500/30 rounded-lg">
                   <p className="text-green-400 text-sm font-medium">✅ Médico encontrado</p>
@@ -322,13 +309,18 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 </div>
               )}
               
-              {/* Opción para agregar médico */}
               {mostrarAgregarDoctor && formData.matricula.length >= 5 && !buscandoDoctor && !doctorEncontrado && (
                 <div className="p-3 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">
                   <p className="text-yellow-400 text-xs mb-2">⚠️ Médico no encontrado para la matrícula {formData.matricula}</p>
                   <button 
                     type="button" 
-                    onClick={() => setMostrarAgregarDoctor(false)} 
+                    onClick={() => {
+                      setMostrarAgregarDoctor(false);
+                      // Mostrar formulario para agregar
+                      setTimeout(() => {
+                        // El formulario aparecerá automáticamente cuando mostrarAgregarDoctor sea false
+                      }, 0);
+                    }} 
                     className="w-full py-2 bg-yellow-600/50 hover:bg-yellow-600 rounded-lg text-yellow-300 text-sm flex items-center justify-center gap-2 transition"
                   >
                     <UserPlus className="w-4 h-4" /> Agregar nuevo médico
@@ -336,7 +328,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 </div>
               )}
               
-              {/* Formulario para nuevo médico */}
               {!mostrarAgregarDoctor && formData.matricula.length >= 5 && !buscandoDoctor && !doctorEncontrado && (
                 <div className="p-3 bg-slate-700/50 rounded-lg space-y-2">
                   <p className="text-slate-300 text-xs">Nuevo médico:</p>
@@ -360,7 +351,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 </div>
               )}
 
-              {/* Nombre */}
               <div>
                 <label className="block text-sm font-semibold text-white mb-2">Nombre completo</label>
                 <input
@@ -373,7 +363,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 />
               </div>
 
-              {/* Sin tarjeta */}
               <div className="flex items-center justify-between p-3 bg-slate-700/50 rounded-xl">
                 <label className="text-white text-sm">Sin tarjeta</label>
                 <input 
@@ -384,7 +373,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 />
               </div>
 
-              {/* Motivo y observaciones */}
               {formData.sin_tarjeta && (
                 <div className="space-y-2 p-3 bg-red-500/10 rounded-xl">
                   <select 
@@ -406,7 +394,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 </div>
               )}
 
-              {/* Error */}
               {error && (
                 <div className="bg-red-500/10 rounded-xl p-2 text-red-400 text-xs text-center flex items-center justify-center gap-1">
                   <AlertCircle className="w-3 h-3" />
@@ -414,7 +401,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 </div>
               )}
 
-              {/* Botones */}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={handleClose} className="flex-1 py-3 rounded-xl border border-slate-600 text-white hover:bg-slate-700 transition">
                   Cancelar
