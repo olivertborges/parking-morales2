@@ -1,278 +1,167 @@
 // src/pages/vehicles/ActiveVehiclesPage.jsx
 import { useEffect, useState } from "react";
 import { supabase } from "../../services/supabase";
-import { 
-  Search, 
-  LogOut, 
-  Clock, 
-  Car,
-  AlertCircle,
-  X,
-  User
-} from "lucide-react";
+import { exitVehicle } from "../../services/activeVehiclesService";
+import { Search, Car, Clock, AlertCircle, LogOut, User, Building2, Star, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 import { addLog } from "../../services/logsService";
-
-// Componente Modal para Salida Manual
-const SalidaManualModal = ({ open, onClose, onSuccess }) => {
-  const [matricula, setMatricula] = useState("");
-  const [buscando, setBuscando] = useState(false);
-  const [vehiculoEncontrado, setVehiculoEncontrado] = useState(null);
-  const [cargando, setCargando] = useState(false);
-
-  const buscarVehiculo = async () => {
-    if (!matricula || matricula.length < 4) {
-      toast.error("Ingrese una matrícula válida (mínimo 4 caracteres)");
-      return;
-    }
-    
-    setBuscando(true);
-    setVehiculoEncontrado(null);
-    
-    const matriculaLimpia = matricula.replace(/\s/g, '').toUpperCase();
-    
-    // 1. Buscar en active_vehicles primero
-    const { data: activo, error: errorActivo } = await supabase
-      .from("active_vehicles")
-      .select("*")
-      .eq("matricula", matriculaLimpia)
-      .single();
-    
-    if (activo) {
-      setVehiculoEncontrado({ ...activo, origen: "active" });
-      setBuscando(false);
-      return;
-    }
-    
-    // 2. Buscar en history (sin hora_salida)
-    const { data: historico, error: errorHistorico } = await supabase
-      .from("history")
-      .select("*")
-      .eq("matricula", matriculaLimpia)
-      .is("hora_salida", null)
-      .order("hora_entrada", { ascending: false })
-      .limit(1);
-    
-    if (historico && historico.length > 0) {
-      setVehiculoEncontrado({ ...historico[0], origen: "history" });
-    } else {
-      toast.error("No se encontró ningún vehículo con esa matrícula pendiente de salida");
-    }
-    
-    setBuscando(false);
-  };
-
-  const confirmarSalida = async () => {
-    if (!vehiculoEncontrado) return;
-    
-    setCargando(true);
-    const hora_salida = new Date().toLocaleTimeString('es-AR', { hour12: false });
-    const fecha_salida = new Date().toISOString().split('T')[0];
-    
-    if (vehiculoEncontrado.origen === "active") {
-      // Salida normal desde active_vehicles
-      await supabase.from("active_vehicles").delete().eq("id", vehiculoEncontrado.id);
-      await supabase
-        .from("history")
-        .update({ 
-          hora_salida: hora_salida,
-          fecha_salida: fecha_salida,
-          salida_manual: false 
-        })
-        .eq("id", vehiculoEncontrado.id);
-    } else {
-      // Salida manual desde history
-      await supabase
-        .from("history")
-        .update({ 
-          hora_salida: hora_salida,
-          fecha_salida: fecha_salida,
-          salida_manual: true 
-        })
-        .eq("id", vehiculoEncontrado.id);
-    }
-    
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    await addLog(user.nombre || "Anónimo", "SALIDA_MANUAL", `${vehiculoEncontrado.nombre} - ${vehiculoEncontrado.matricula}`);
-    
-    toast.success(`✅ Salida registrada para ${vehiculoEncontrado.nombre}`);
-    setVehiculoEncontrado(null);
-    setMatricula("");
-    onSuccess();
-    onClose();
-    setCargando(false);
-  };
-
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="bg-slate-800 rounded-2xl max-w-md w-full border border-red-500/30 shadow-2xl">
-        <div className="flex justify-between items-center p-5 border-b border-slate-700">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-600/20 flex items-center justify-center">
-              <LogOut className="w-5 h-5 text-red-400" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-white">Salida Manual</h3>
-              <p className="text-slate-400 text-xs">Para vehículos que ya salieron</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full bg-slate-700 hover:bg-slate-600 transition text-white">
-            <X className="w-4 h-4 mx-auto" />
-          </button>
-        </div>
-        
-        <div className="p-5 space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-white mb-2">Matrícula</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={matricula}
-                onChange={(e) => setMatricula(e.target.value.toUpperCase())}
-                className="flex-1 bg-slate-700 border border-slate-600 rounded-xl p-3 text-white uppercase font-mono tracking-wide focus:border-amber-500 focus:outline-none"
-                placeholder="ABC 1234"
-                autoComplete="off"
-              />
-              <button
-                onClick={buscarVehiculo}
-                disabled={buscando}
-                className="px-4 bg-amber-500 rounded-xl text-white hover:bg-amber-600 transition disabled:opacity-50"
-              >
-                {buscando ? "..." : "Buscar"}
-              </button>
-            </div>
-          </div>
-          
-          {vehiculoEncontrado && (
-            <div className="p-3 bg-green-500/20 border border-green-500/30 rounded-lg">
-              <p className="text-green-400 text-sm font-medium flex items-center gap-1">
-                <Car className="w-3 h-3" /> Vehículo encontrado
-              </p>
-              <div className="mt-2 space-y-1 text-sm">
-                <p className="text-white"><span className="text-slate-400">Nombre:</span> {vehiculoEncontrado.nombre}</p>
-                <p className="text-white"><span className="text-slate-400">Matrícula:</span> {vehiculoEncontrado.matricula}</p>
-                <p className="text-white"><span className="text-slate-400">Hora entrada:</span> {vehiculoEncontrado.hora_entrada}</p>
-                <p className="text-white"><span className="text-slate-400">Tipo:</span> {vehiculoEncontrado.tipo}</p>
-                {vehiculoEncontrado.origen === "history" && (
-                  <p className="text-yellow-400 text-xs mt-2 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    Este vehículo no está en el estacionamiento activo. Se registrará salida manual.
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-          
-          <div className="flex gap-3 pt-4">
-            <button onClick={onClose} className="flex-1 py-2.5 border border-slate-600 rounded-xl text-white hover:bg-slate-700 transition">
-              Cancelar
-            </button>
-            <button
-              onClick={confirmarSalida}
-              disabled={!vehiculoEncontrado || cargando}
-              className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 rounded-xl text-white font-semibold disabled:opacity-50 transition"
-            >
-              {cargando ? "Procesando..." : "Confirmar Salida"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+import RegisterVehicleModal from "../../components/modals/RegisterVehicleModal";
 
 export default function ActiveVehiclesPage() {
   const [vehicles, setVehicles] = useState([]);
   const [filteredVehicles, setFilteredVehicles] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
-  const [exitLoading, setExitLoading] = useState(null);
-  const [showSalidaManual, setShowSalidaManual] = useState(false);
+  const [exitModal, setExitModal] = useState(null);
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [quickType, setQuickType] = useState("Medico");
+  
+  const capacidadTotal = 37;
 
+  async function loadVehicles() {
+    console.log("🔄 Cargando vehículos...");
+    setLoading(true);
+    
+    const { data, error } = await supabase
+      .from("active_vehicles")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error cargando:", error);
+    } else {
+      setVehicles(data || []);
+      setFilteredVehicles(data || []);
+    }
+    
+    setLoading(false);
+  }
+
+  // Cargar al inicio
   useEffect(() => {
-    loadActiveVehicles();
+    loadVehicles();
+    
+    // Escuchar evento personalizado para recargar desde el modal
+    const handleReload = () => {
+      console.log("📢 Evento recargar recibido");
+      loadVehicles();
+    };
+    
+    window.addEventListener('reload-vehicles', handleReload);
+    
+    return () => {
+      window.removeEventListener('reload-vehicles', handleReload);
+    };
   }, []);
 
+  // Filtrar
   useEffect(() => {
-    if (searchTerm) {
+    if (!searchTerm.trim()) {
+      setFilteredVehicles(vehicles);
+    } else {
       const filtered = vehicles.filter(vehicle =>
         vehicle.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         vehicle.matricula?.toLowerCase().includes(searchTerm.toLowerCase())
       );
       setFilteredVehicles(filtered);
-    } else {
-      setFilteredVehicles(vehicles);
     }
   }, [searchTerm, vehicles]);
 
-  async function loadActiveVehicles() {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("active_vehicles")
-      .select("*")
-      .order("hora_entrada", { ascending: true });
-    
-    if (!error && data) {
-      setVehicles(data);
-      setFilteredVehicles(data);
-    }
-    setLoading(false);
-  }
+  // src/pages/vehicles/ActiveVehiclesPage.jsx
 
-  async function handleExit(vehicle) {
-    if (!confirm(`¿Registrar salida de ${vehicle.nombre} - ${vehicle.matricula}?`)) return;
-    
-    setExitLoading(vehicle.id);
-    const hora_salida = new Date().toLocaleTimeString('es-AR', { hour12: false });
-    const fecha_salida = new Date().toISOString().split('T')[0];
-    
-    // 1. Eliminar de active_vehicles
-    const { error: deleteError } = await supabase
-      .from("active_vehicles")
-      .delete()
-      .eq("id", vehicle.id);
-    
-    if (deleteError) {
-      toast.error("Error al registrar salida");
-      setExitLoading(null);
-      return;
-    }
-    
-    // 2. Actualizar history con hora_salida
-    const { error: updateError } = await supabase
-      .from("history")
-      .update({ 
-        hora_salida: hora_salida,
-        fecha_salida: fecha_salida
-      })
-      .eq("id", vehicle.id);
-    
-    if (updateError) {
-      toast.error("Error al actualizar historial");
-    } else {
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
-      await addLog(user.nombre || "Anónimo", "REGISTRO_SALIDA", `${vehicle.nombre} - ${vehicle.matricula}`);
-      toast.success(`✅ Salida registrada: ${vehicle.nombre}`);
-      loadActiveVehicles();
-    }
-    
-    setExitLoading(null);
+async function handleExit(vehicle) {
+  const horaSalida = new Date().toLocaleTimeString('es-AR', { hour12: false });
+  const fechaSalida = new Date().toISOString().split('T')[0];
+  
+  // 1. Actualizar history
+  const { error: updateError } = await supabase
+    .from("history")
+    .update({ 
+      hora_salida: horaSalida,
+      fecha_salida: fechaSalida
+    })
+    .eq("nombre", vehicle.nombre)
+    .eq("matricula", vehicle.matricula)
+    .is("hora_salida", null);
+  
+  if (updateError) {
+    console.error("Error actualizando history:", updateError);
+    toast.error("Error al registrar salida");
+    return;
   }
+  
+  // 2. Eliminar de active_vehicles
+  const { error: deleteError } = await supabase
+    .from("active_vehicles")
+    .delete()
+    .eq("id", vehicle.id);
+  
+  if (deleteError) {
+    console.error("Error eliminando:", deleteError);
+    toast.error("Error al eliminar vehículo");
+    return;
+  }
+  
+  // 3. Liberar lugar en parking_assignments si estaba asignado
+  await supabase
+    .from("parking_assignments")
+    .update({ activo: false, medico_nombre: null, medico_matricula: null, vehiculo_id: null })
+    .eq("vehiculo_id", vehicle.id);
+  
+  toast.success(`🚗 ${vehicle.nombre} salió del estacionamiento`);
+  setExitModal(null);
+  loadVehicles();
+}
 
-  const getTipoBadge = (tipo) => {
-    if (tipo === "Medico") return "bg-blue-500/20 text-blue-400 border border-blue-500/30";
-    if (tipo === "Junta") return "bg-purple-500/20 text-purple-400 border border-purple-500/30";
-    if (tipo === "Reserva") return "bg-green-500/20 text-green-400 border border-green-500/30";
-    return "bg-amber-500/20 text-amber-400 border border-amber-500/30";
-  };
+  function calcularTiempoTranscurrido(horaEntrada) {
+    if (!horaEntrada) return "—";
+    
+    const [hora, minuto] = horaEntrada.split(":");
+    const entrada = new Date();
+    entrada.setHours(parseInt(hora), parseInt(minuto), 0);
+    
+    const ahora = new Date();
+    let diffMinutos = Math.floor((ahora - entrada) / 60000);
+    
+    if (diffMinutos < 0) diffMinutos += 24 * 60;
+    if (diffMinutos < 1) return "recién";
+    
+    const horas = Math.floor(diffMinutos / 60);
+    const minutos = diffMinutos % 60;
+    
+    if (horas === 0) return `${minutos} min`;
+    if (minutos === 0) return `${horas} h`;
+    return `${horas}h ${minutos}m`;
+  }
 
   const getTipoIcon = (tipo) => {
-    if (tipo === "Medico") return "👨‍⚕️";
-    if (tipo === "Junta") return "🏛️";
-    if (tipo === "Reserva") return "⭐";
-    return "🚗";
+    switch (tipo) {
+      case "Medico": return <User className="w-4 h-4 text-blue-400" />;
+      case "Junta": return <Building2 className="w-4 h-4 text-purple-400" />;
+      case "Reserva": return <Star className="w-4 h-4 text-green-400" />;
+      default: return <Car className="w-4 h-4 text-slate-400" />;
+    }
+  };
+
+  const getTipoColor = (tipo) => {
+    switch (tipo) {
+      case "Medico": return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+      case "Junta": return "bg-purple-500/20 text-purple-400 border-purple-500/30";
+      case "Reserva": return "bg-green-500/20 text-green-400 border-green-500/30";
+      default: return "bg-slate-700 text-slate-400";
+    }
+  };
+
+  const totalOcupados = vehicles.length;
+  const porcentajeOcupacion = totalOcupados > 0 ? Math.round((totalOcupados / capacidadTotal) * 100) : 0;
+
+  const getSelectorColor = (tipo) => {
+    switch (tipo) {
+      case "Medico": return "bg-blue-600/80 hover:bg-blue-700";
+      case "Junta": return "bg-purple-600/80 hover:bg-purple-700";
+      case "Reserva": return "bg-green-600/80 hover:bg-green-700";
+      default: return "bg-slate-600";
+    }
   };
 
   return (
@@ -281,103 +170,209 @@ export default function ActiveVehiclesPage() {
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Vehículos dentro</h1>
-          <p className="text-slate-400 text-sm mt-1">Vehículos actualmente en el estacionamiento</p>
+          <p className="text-slate-400 text-sm mt-1">Vehículos actualmente estacionados</p>
         </div>
         
-        <div className="flex gap-3">
-          <button
-            onClick={() => setShowSalidaManual(true)}
-            className="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition"
-          >
-            <LogOut className="w-4 h-4" />
-            Salida Manual
-          </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <select
+              value={quickType}
+              onChange={(e) => setQuickType(e.target.value)}
+              className={`${getSelectorColor(quickType)} text-white px-3 py-2 rounded-xl text-sm font-medium border-none cursor-pointer transition`}
+            >
+              <option value="Medico" className="bg-slate-800">👨‍⚕️ Médico</option>
+              <option value="Junta" className="bg-slate-800">🏛️ Junta</option>
+              <option value="Reserva" className="bg-slate-800">⭐ Reserva</option>
+            </select>
+            
+            <button
+              onClick={() => setShowRegisterModal(true)}
+              className={`${getSelectorColor(quickType)} text-white px-4 py-2 rounded-xl flex items-center gap-2 transition shadow-lg`}
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Registrar</span>
+            </button>
+          </div>
+          
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Buscar..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full sm:w-64 bg-slate-800 border border-slate-700 rounded-xl py-2.5 pl-10 pr-4 text-white text-sm focus:border-amber-500 focus:outline-none"
+            />
+          </div>
+          
+          <div className="bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-2 rounded-xl font-bold text-white">
+            {totalOcupados}/{capacidadTotal}
+          </div>
         </div>
       </div>
 
-      {/* Búsqueda */}
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Buscar por nombre o matrícula..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full md:w-96 bg-slate-800 border border-slate-700 rounded-xl py-2.5 pl-10 pr-4 text-white text-sm focus:border-amber-500 focus:outline-none transition"
-        />
+      {/* Barra de ocupación */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-6">
+        <div className="flex justify-between text-sm mb-2">
+          <span className="text-slate-400">Ocupación actual</span>
+          <span className="text-white font-semibold">{porcentajeOcupacion}%</span>
+        </div>
+        <div className="bg-slate-800 rounded-full h-2 overflow-hidden">
+          <div 
+            className="bg-gradient-to-r from-amber-500 to-orange-600 h-2 rounded-full transition-all duration-500"
+            style={{ width: `${porcentajeOcupacion}%` }}
+          />
+        </div>
+        <div className="flex justify-between mt-2 text-xs text-slate-500">
+          <span>🟢 Libres: {capacidadTotal - totalOcupados}</span>
+          <span>🔴 Ocupados: {totalOcupados}</span>
+        </div>
       </div>
 
-      {/* Tabla */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-slate-800">
-              <tr>
-                <th className="text-left p-4 text-slate-300 font-semibold text-sm">Nombre</th>
-                <th className="text-left p-4 text-slate-300 font-semibold text-sm">Matrícula</th>
-                <th className="text-left p-4 text-slate-300 font-semibold text-sm">Tipo</th>
-                <th className="text-left p-4 text-slate-300 font-semibold text-sm">Hora entrada</th>
-                <th className="text-center p-4 text-slate-300 font-semibold text-sm">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan="5" className="text-center p-8 text-slate-400">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-amber-500 mx-auto"></div>
-                  </td>
-                </tr>
-              ) : filteredVehicles.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="text-center p-8 text-slate-400">
-                    {searchTerm ? "No se encontraron vehículos" : "No hay vehículos en el estacionamiento"}
-                  </td>
-                </tr>
-              ) : (
-                filteredVehicles.map((vehicle) => (
-                  <tr key={vehicle.id} className="border-t border-slate-800 hover:bg-slate-800/50 transition">
-                    <td className="p-4 text-white font-medium">{vehicle.nombre}</td>
-                    <td className="p-4 text-slate-300 font-mono text-sm">{vehicle.matricula}</td>
-                    <td className="p-4">
-                      <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${getTipoBadge(vehicle.tipo)}`}>
-                        {getTipoIcon(vehicle.tipo)} {vehicle.tipo}
-                      </span>
-                    </td>
-                    <td className="p-4 text-slate-300 text-sm flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> {vehicle.hora_entrada}
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center justify-center">
-                        <button
-                          onClick={() => handleExit(vehicle)}
-                          disabled={exitLoading === vehicle.id}
-                          className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition flex items-center gap-2 text-sm disabled:opacity-50"
-                        >
-                          <LogOut className="w-4 h-4" />
-                          {exitLoading === vehicle.id ? "..." : "Salida"}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      {/* Lista de vehículos */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
         </div>
-        
-        <div className="p-4 border-t border-slate-800 bg-slate-800/30">
-          <p className="text-xs text-slate-400">
-            Total: {filteredVehicles.length} vehículos • Capacidad máxima: 37 plazas
+      ) : filteredVehicles.length === 0 ? (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center">
+          <Car className="mx-auto w-12 h-12 text-slate-600 mb-4" />
+          <p className="text-slate-400">
+            {searchTerm ? "No se encontraron vehículos" : "No hay vehículos dentro del estacionamiento"}
           </p>
         </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredVehicles.map((vehicle) => (
+            <VehicleCard 
+              key={vehicle.id} 
+              vehicle={vehicle} 
+              onExit={() => setExitModal(vehicle)}
+              getTipoIcon={getTipoIcon}
+              getTipoColor={getTipoColor}
+              calcularTiempo={calcularTiempoTranscurrido}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Modal de confirmación */}
+      {exitModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-2xl max-w-md w-full border border-slate-700">
+            <div className="p-5 border-b border-slate-700 text-center">
+              <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-3">
+                <LogOut className="w-8 h-8 text-red-400" />
+              </div>
+              <h3 className="text-xl font-bold text-white">Confirmar salida</h3>
+              <p className="text-slate-400 text-sm mt-1">¿Dar salida al siguiente vehículo?</p>
+            </div>
+            
+            <div className="p-5 space-y-3">
+              <div className="bg-slate-700/50 rounded-xl p-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 text-sm">Nombre:</span>
+                  <span className="text-white font-semibold">{exitModal.nombre}</span>
+                </div>
+                <div className="flex justify-between items-center mt-2">
+                  <span className="text-slate-400 text-sm">Matrícula:</span>
+                  <span className="text-white font-mono font-semibold">{exitModal.matricula}</span>
+                </div>
+                <div className="flex justify-between items-center mt-2">
+                  <span className="text-slate-400 text-sm">Hora entrada:</span>
+                  <span className="text-white">{exitModal.hora_entrada}</span>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setExitModal(null)} className="flex-1 py-2.5 border border-slate-600 rounded-xl text-white font-medium hover:bg-slate-700 transition">
+                  Cancelar
+                </button>
+                <button onClick={() => handleExit(exitModal)} className="flex-1 bg-gradient-to-r from-red-600 to-red-700 py-2.5 rounded-xl font-semibold text-white hover:from-red-700 hover:to-red-800 transition flex items-center justify-center gap-2">
+                  <LogOut className="w-4 h-4" />
+                  Dar salida
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de registro rápido */}
+      <RegisterVehicleModal 
+        open={showRegisterModal} 
+        onClose={() => {
+          setShowRegisterModal(false);
+          loadVehicles(); // Recargar solo la lista
+        }} 
+        defaultType={quickType}
+      />
+    </div>
+  );
+}
+
+function VehicleCard({ vehicle, onExit, getTipoIcon, getTipoColor, calcularTiempo }) {
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-amber-500/50 transition-all duration-300">
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className={`p-2 rounded-xl ${getTipoColor(vehicle.tipo)}`}>
+            {getTipoIcon(vehicle.tipo)}
+          </div>
+          <div>
+            <h3 className="font-bold text-white text-base">{vehicle.nombre}</h3>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${getTipoColor(vehicle.tipo)}`}>
+              {vehicle.tipo}
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Modal de Salida Manual */}
-      <SalidaManualModal
-        open={showSalidaManual}
-        onClose={() => setShowSalidaManual(false)}
-        onSuccess={loadActiveVehicles}
-      />
+      <div className="space-y-2 mb-4">
+        <div className="bg-slate-800/50 rounded-xl p-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-400">Matrícula</span>
+            <span className="font-mono text-white font-semibold text-sm">{vehicle.matricula}</span>
+          </div>
+        </div>
+        
+        <div className="bg-slate-800/50 rounded-xl p-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-400 flex items-center gap-1">
+              <Clock className="w-3 h-3" /> Entrada
+            </span>
+            <span className="text-white font-medium text-sm">{vehicle.hora_entrada}</span>
+          </div>
+        </div>
+
+        <div className="bg-slate-800/50 rounded-xl p-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-400 flex items-center gap-1">
+              <Clock className="w-3 h-3" /> Tiempo
+            </span>
+            <span className="text-amber-400 font-mono text-sm font-bold">
+              {calcularTiempo(vehicle.hora_entrada)}
+            </span>
+          </div>
+        </div>
+
+        {vehicle.sin_tarjeta && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-2.5">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-3 h-3 text-red-400" />
+              <span className="text-red-400 text-xs font-medium">Sin tarjeta</span>
+            </div>
+            {vehicle.sin_tarjeta_motivo && (
+              <p className="text-xs text-slate-400 mt-1">Motivo: {vehicle.sin_tarjeta_motivo}</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      <button onClick={onExit} className="w-full bg-red-500/20 hover:bg-red-500/30 text-red-400 py-2 rounded-xl font-semibold text-sm transition flex items-center justify-center gap-2">
+        <LogOut className="w-4 h-4" />
+        Dar salida
+      </button>
     </div>
   );
 }
