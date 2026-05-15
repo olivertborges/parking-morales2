@@ -8,6 +8,7 @@ import ModalConfirmar from "../../components/ModalConfirmar";
 import { formatFecha } from "../../utils/dateUtils";
 import { exportToPDF } from "../../utils/pdfUtils";
 import { useAuth } from "../../hooks/useAuth";
+import { addLog } from "../../services/logsService";
 
 export default function HistoryPage() {
   const [registros, setRegistros] = useState([]);
