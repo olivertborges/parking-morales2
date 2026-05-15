@@ -22,6 +22,8 @@ export default function HistoryPage() {
   const [editandoId, setEditandoId] = useState(null);
   const [editandoNombre, setEditandoNombre] = useState("");
   const { isAdmin } = useAuth();
+const [editandoSalida, setEditandoSalida] = useState(null);
+const [nuevaHoraSalida, setNuevaHoraSalida] = useState("");
 
   async function cargarHistorial() {
     const { data } = await supabase
@@ -133,6 +135,30 @@ export default function HistoryPage() {
   setEditandoId(null);
 }
 
+async function actualizarHoraSalida(vehiculo) {
+  if (!nuevaHoraSalida) {
+    toast.error("Seleccione una hora de salida");
+    return;
+  }
+  
+  const { error } = await supabase
+    .from("history")
+    .update({ 
+      hora_salida: nuevaHoraSalida,
+      fecha_salida: new Date().toISOString().split('T')[0]
+    })
+    .eq("id", vehiculo.id);
+  
+  if (error) {
+    toast.error("Error: " + error.message);
+  } else {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    await addLog(user.nombre || "Anónimo", "EDITAR_SALIDA", `${vehiculo.nombre} - ${vehiculo.matricula}`);
+    toast.success("✅ Hora de salida actualizada");
+    setEditandoSalida(null);
+    loadHistory();
+  }
+}
 
   function iniciarEdicion(item) {
     setEditandoId(item.id);
@@ -307,7 +333,7 @@ export default function HistoryPage() {
                   <td className="text-center">
                     <div className="flex items-center justify-center gap-2">
                       <button
-                        onClick={() => verDetalle(item)}
+                        onClick={() => setEditandoSalida(item)}
                         className="w-8 h-8 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 transition flex items-center justify-center"
                         title="Ver detalle"
                       >
@@ -340,6 +366,40 @@ export default function HistoryPage() {
 
       <ModalDetalle isOpen={modalDetalleOpen} onClose={() => setModalDetalleOpen(false)} title="Detalle del movimiento" data={selectedItem} onDelete={() => {}} type="history" />
       <ModalConfirmar isOpen={modalConfirmOpen} onClose={() => setModalConfirmOpen(false)} onConfirm={eliminarRegistro} title="Confirmar eliminación" message={`¿Eliminar el registro de ${itemToDelete?.nombre}?`} />
+
+{/* Modal para editar hora de salida */}
+{editandoSalida && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
+    <div className="bg-slate-800 rounded-2xl max-w-md w-full p-5">
+      <h3 className="text-xl font-bold text-white mb-4">Editar hora de salida</h3>
+      
+      <div className="space-y-3 mb-4">
+        <p className="text-slate-300"><span className="text-slate-400">Nombre:</span> {editandoSalida.nombre}</p>
+        <p className="text-slate-300"><span className="text-slate-400">Matrícula:</span> {editandoSalida.matricula}</p>
+        <p className="text-slate-300"><span className="text-slate-400">Hora entrada:</span> {editandoSalida.hora_entrada}</p>
+        
+        <div>
+          <label className="block text-sm text-white mb-1">Nueva hora de salida</label>
+          <input
+            type="time"
+            value={nuevaHoraSalida}
+            onChange={(e) => setNuevaHoraSalida(e.target.value)}
+            className="w-full bg-slate-700 rounded-xl p-2 text-white"
+          />
+        </div>
+      </div>
+      
+      <div className="flex gap-3">
+        <button onClick={() => setEditandoSalida(null)} className="flex-1 py-2 border border-slate-600 rounded-xl text-white">
+          Cancelar
+        </button>
+        <button onClick={() => actualizarHoraSalida(editandoSalida)} className="flex-1 py-2 bg-amber-500 rounded-xl text-white font-semibold">
+          Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }
