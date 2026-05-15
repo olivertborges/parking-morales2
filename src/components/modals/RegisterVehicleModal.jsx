@@ -25,6 +25,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
   const [doctorEncontrado, setDoctorEncontrado] = useState(null);
   const [mostrarFormularioNuevo, setMostrarFormularioNuevo] = useState(false);
   const [editandoDoctor, setEditandoDoctor] = useState(false);
+  const [vehiculoActivo, setVehiculoActivo] = useState(null); // 👈 NUEVO: para validar vehículo activo
   const [doctorEdit, setDoctorEdit] = useState({ 
     id: null,
     nombre: "", 
@@ -71,24 +72,35 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     return limpio;
   };
 
+  // 👈 NUEVA FUNCIÓN: Verificar si la matrícula ya está activa
+  const verificarMatriculaActiva = async (matricula) => {
+    if (!matricula || matricula.length < 5) {
+      setVehiculoActivo(null);
+      return;
+    }
+    
+    const matriculaLimpia = normalizarMatricula(matricula);
+    
+    const { data, error } = await supabase
+      .from("active_vehicles")
+      .select("id, nombre, matricula, hora_entrada, tipo")
+      .eq("matricula", matriculaLimpia)
+      .single();
+    
+    if (data && !error) {
+      setVehiculoActivo(data);
+    } else {
+      setVehiculoActivo(null);
+    }
+  };
+
   const handleMatriculaChange = (e) => {
     const formateado = formatearMatriculaEnTiempoReal(e.target.value);
     setFormData({ ...formData, matricula: formateado });
     setDoctorEncontrado(null);
     setMostrarFormularioNuevo(false);
     setEditandoDoctor(false);
-  };
-
-  const handleNombreChange = (e) => {
-    setFormData({ ...formData, nombre: e.target.value });
-  };
-
-  const handleModeloChange = (e) => {
-    setFormData({ ...formData, modelo: e.target.value });
-  };
-
-  const handleColorChange = (e) => {
-    setFormData({ ...formData, color: e.target.value });
+    verificarMatriculaActiva(formateado); // 👈 Verificar en tiempo real
   };
 
   const buscarDoctorPorMatricula = async (matricula) => {
@@ -110,7 +122,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     return doctor || null;
   };
 
-  // Efecto para buscar médico con debounce
   useEffect(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -172,7 +183,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     };
   }, [formData.matricula]);
 
-  // Editar médico existente
   const editarMedico = async () => {
     if (!doctorEdit.nombre.trim()) {
       toast.error("El nombre no puede estar vacío");
@@ -209,7 +219,6 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     }
   };
 
-  // Agregar nuevo médico
   const agregarNuevoDoctor = async () => {
     if (!nuevoDoctor.nombre.trim()) {
       toast.error("Ingrese el nombre del médico");
@@ -218,28 +227,32 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     
     const matriculaNormalizada = normalizarMatricula(formData.matricula);
     
-    const { data, error } = await supabase.from("doctors").insert({
-      nombre: nuevoDoctor.nombre,
-      matricula: matriculaNormalizada,
-      modelo: nuevoDoctor.modelo || "",
-      color: nuevoDoctor.color || ""
-    }).select();
-    
-    if (!error && data) {
-      toast.success(`✅ Médico ${nuevoDoctor.nombre} agregado correctamente`);
-      setMostrarFormularioNuevo(false);
-      setDoctorEncontrado(data[0]);
-      setFormData(prev => ({ 
-        ...prev, 
+    const { data: doctorData, error: doctorError } = await supabase
+      .from("doctors")
+      .insert({
         nombre: nuevoDoctor.nombre,
+        matricula: matriculaNormalizada,
         modelo: nuevoDoctor.modelo || "",
         color: nuevoDoctor.color || ""
-      }));
-      setNuevoDoctor({ nombre: "", modelo: "", color: "" });
-    } else {
-      console.error("Error al agregar médico:", error);
-      toast.error(`Error: ${error.message}`);
+      })
+      .select();
+    
+    if (doctorError) {
+      console.error("Error al agregar médico:", doctorError);
+      toast.error(`Error al crear médico: ${doctorError.message}`);
+      return;
     }
+    
+    toast.success(`✅ Médico ${nuevoDoctor.nombre} agregado correctamente`);
+    setMostrarFormularioNuevo(false);
+    setDoctorEncontrado(doctorData?.[0] || null);
+    setFormData(prev => ({ 
+      ...prev, 
+      nombre: nuevoDoctor.nombre,
+      modelo: nuevoDoctor.modelo || "",
+      color: nuevoDoctor.color || ""
+    }));
+    setNuevoDoctor({ nombre: "", modelo: "", color: "" });
   };
 
   const resetForm = () => {
@@ -257,6 +270,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     setDoctorEncontrado(null);
     setMostrarFormularioNuevo(false);
     setEditandoDoctor(false);
+    setVehiculoActivo(null); // 👈 Resetear vehículo activo
     setNuevoDoctor({ nombre: "", modelo: "", color: "" });
     setDoctorEdit({ id: null, nombre: "", modelo: "", color: "" });
     setError("");
@@ -300,6 +314,14 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
     e.preventDefault();
     setError("");
     setLoading(true);
+
+    // 👈 Validar que el vehículo no esté activo antes de enviar
+    if (vehiculoActivo) {
+      setError(`El vehículo con matrícula ${formData.matricula} ya se encuentra dentro del estacionamiento desde las ${vehiculoActivo.hora_entrada}.`);
+      setLoading(false);
+      toast.error(`❌ El vehículo ya está dentro desde las ${vehiculoActivo.hora_entrada}`);
+      return;
+    }
 
     if (!formData.nombre.trim()) {
       setError("El nombre es obligatorio");
@@ -409,7 +431,11 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                   required
                   value={formData.matricula}
                   onChange={handleMatriculaChange}
-                  className="w-full bg-slate-700 border-2 border-slate-600 rounded-xl p-4 text-white uppercase font-mono text-2xl tracking-wider text-center focus:border-amber-500 focus:outline-none transition"
+                  className={`w-full bg-slate-700 border-2 rounded-xl p-4 text-white uppercase font-mono text-2xl tracking-wider text-center focus:outline-none transition ${
+                    vehiculoActivo 
+                      ? "border-red-500 focus:border-red-500" 
+                      : "border-slate-600 focus:border-amber-500"
+                  }`}
                   placeholder="ABC 1234"
                   autoComplete="off"
                   maxLength={9}
@@ -421,6 +447,24 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 </div>
               </div>
 
+              {/* 👈 ALERTA: Vehículo ya está activo */}
+              {vehiculoActivo && (
+                <div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
+                  <p className="text-red-400 text-xs font-medium flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" /> ⚠️ ¡Vehículo ya está dentro!
+                  </p>
+                  <p className="text-white text-xs mt-1">
+                    Registrado por: <span className="font-semibold">{vehiculoActivo.nombre}</span>
+                  </p>
+                  <p className="text-white text-xs">
+                    Hora de entrada: <span className="font-semibold">{vehiculoActivo.hora_entrada}</span>
+                  </p>
+                  <p className="text-white text-xs">
+                    Tipo: <span className="font-semibold">{vehiculoActivo.tipo}</span>
+                  </p>
+                </div>
+              )}
+
               {/* Buscando médico */}
               {buscandoDoctor && (
                 <div className="flex items-center gap-2 text-amber-400 text-xs bg-amber-500/10 p-2 rounded-lg">
@@ -429,7 +473,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 </div>
               )}
               
-              {/* Médico encontrado - MODO EDICIÓN o VISUALIZACIÓN */}
+              {/* Médico encontrado */}
               {doctorEncontrado && !editandoDoctor && (
                 <div className="p-3 bg-green-500/20 border border-green-500/30 rounded-lg">
                   <div className="flex justify-between items-start">
@@ -510,8 +554,8 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 </div>
               )}
               
-              {/* Botón para agregar médico (solo si no se encontró) */}
-              {!doctorEncontrado && !buscandoDoctor && formData.matricula.replace(/\s/g, '').length >= 4 && (
+              {/* Botón para agregar médico (solo si no se encontró y no hay vehículo activo) */}
+              {!doctorEncontrado && !buscandoDoctor && formData.matricula.replace(/\s/g, '').length >= 4 && !vehiculoActivo && (
                 <div className="p-3 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">
                   <p className="text-yellow-400 text-xs mb-2">⚠️ Médico no encontrado para la matrícula {formData.matricula}</p>
                   <button 
@@ -525,7 +569,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
               )}
               
               {/* Formulario para agregar nuevo médico */}
-              {mostrarFormularioNuevo && !doctorEncontrado && (
+              {mostrarFormularioNuevo && !doctorEncontrado && !vehiculoActivo && (
                 <div className="p-3 bg-slate-700/50 rounded-lg space-y-2">
                   <p className="text-slate-300 text-xs">Complete los datos del nuevo médico:</p>
                   <div className="space-y-2">
@@ -562,7 +606,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 </div>
               )}
 
-              {/* Nombre - Ahora editable siempre */}
+              {/* Nombre */}
               {!doctorEncontrado && (
                 <div>
                   <label className="block text-sm font-semibold text-white mb-2">Nombre completo</label>
@@ -570,21 +614,21 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                     type="text"
                     required
                     value={formData.nombre}
-                    onChange={handleNombreChange}
+                    onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
                     className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white focus:border-amber-500 focus:outline-none"
                     placeholder="Nombre del médico"
                   />
                 </div>
               )}
 
-              {/* Modelo y Color - Siempre visibles y editables */}
+              {/* Modelo y Color */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-semibold text-white mb-2">Modelo</label>
                   <input
                     type="text"
                     value={formData.modelo}
-                    onChange={handleModeloChange}
+                    onChange={(e) => setFormData({ ...formData, modelo: e.target.value })}
                     className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white focus:border-amber-500 focus:outline-none"
                     placeholder="Ej: Toyota Corolla"
                   />
@@ -594,7 +638,7 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                   <input
                     type="text"
                     value={formData.color}
-                    onChange={handleColorChange}
+                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
                     className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white focus:border-amber-500 focus:outline-none"
                     placeholder="Ej: Rojo"
                   />
@@ -647,7 +691,11 @@ export default function RegisterVehicleModal({ open, onClose, onSuccess, default
                 <button type="button" onClick={handleClose} className="flex-1 py-3 rounded-xl border border-slate-600 text-white hover:bg-slate-700 transition">
                   Cancelar
                 </button>
-                <button type="submit" disabled={loading} className={`flex-1 py-3 rounded-xl font-semibold text-white bg-gradient-to-r ${colors.buttonBg} hover:opacity-90 transition disabled:opacity-50`}>
+                <button 
+                  type="submit" 
+                  disabled={loading || vehiculoActivo} 
+                  className={`flex-1 py-3 rounded-xl font-semibold text-white bg-gradient-to-r ${colors.buttonBg} hover:opacity-90 transition disabled:opacity-50`}
+                >
                   {loading ? "Registrando..." : "Registrar"}
                 </button>
               </div>
