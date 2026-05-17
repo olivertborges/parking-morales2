@@ -25,7 +25,7 @@ export default function ParkingHistoryPage() {
   async function cargarHistorial() {
     // CORRECTO
 const { data } = await supabase
-  .from("historial_de_estacionamiento")  // ✅ Tabla correcta
+  .from("parking_history")  // ✅ Tabla correcta
   .select("*")
   .order("created_at", { ascending: false });
     setRegistros(data || []);
@@ -99,7 +99,7 @@ const { data } = await supabase
 
   async function eliminarRegistro() {
     if (!itemToDelete) return;
-    const { error } = await supabase.from("historial_de_estacionamiento").delete().eq("id", itemToDelete.id);
+    const { error } = await supabase.from("parking_history").delete().eq("id", itemToDelete.id);
     if (error) {
       toast.error("Error al eliminar");
     } else {
